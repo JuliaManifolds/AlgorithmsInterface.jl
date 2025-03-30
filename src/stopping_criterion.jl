@@ -105,7 +105,7 @@ function indicates_convergence(sc::StopWhenAll)
     return any(indicates_convergence, sc.criteria)
 end
 
-function Base.show(io::IO, sc::StopWhenAll)
+function Base.show(io::IO, ::MIME"text/plain", sc::StopWhenAll)
     s = ""
     for sc_i in sc.criteria
         s = s * "\n * " * replace("$(sc_i)", "\n" => "\n    ") #increase indent
@@ -154,7 +154,7 @@ end
 function indicates_convergence(sc::StopWhenAny)
     return all(indicates_convergence, sc.criteria)
 end
-function Base.show(io::IO, sc::StopWhenAny)
+function Base.show(io::IO, ::MIME"text/plain", sc::StopWhenAny)
     s = ""
     for sc_i in sc.criteria
         s = s * "\n * " * replace("$(sc_i)", "\n" => "\n    ") #increase indent
