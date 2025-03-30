@@ -63,12 +63,11 @@ If so it returns whether `sc` itself indicates convergence, otherwise it returns
 since the algorithm has then not yet stopped.
 """
 function indicates_convergence(sc::StoppingCriterion, scs::StoppingCriterionState)
-    return length(get_reason(sc, scs)) > 0 ? indicates_convergence(sc) : false
+    return isnothing(get_reason(sc, scs)) ? indicates_convergence(sc) : false
 end
 
-function summary end
 @doc """
-    summary(sc::StoppingCriterion, scs::StoppingCriterionState)
+    summary(io::IO, sc::StoppingCriterion, scs::StoppingCriterionState)
 
 Provide a summary of the status of a stopping criterion – its parameters and whether
 it currently indicates to stop. It should not be longer than one line
@@ -81,7 +80,7 @@ For the [`StopAfterIteration`](@ref) criterion, the summary looks like
 Max Iterations (15): not reached
 ```
 """
-summary(::StoppingCriterion, ::StoppingCriterionState)
+Base.summary(io::IO, ::StoppingCriterion, ::StoppingCriterionState)
 
 #
 #
@@ -106,7 +105,7 @@ function indicates_convergence(sc::StopWhenAll)
     return any(indicates_convergence, sc.criteria)
 end
 
-function show(io::IO, sc::StopWhenAll)
+function Base.show(io::IO, sc::StopWhenAll)
     s = ""
     for sc_i in sc.criteria
         s = s * "\n * " * replace("$(sc_i)", "\n" => "\n    ") #increase indent
@@ -155,7 +154,7 @@ end
 function indicates_convergence(sc::StopWhenAny)
     return all(indicates_convergence, sc.criteria)
 end
-function show(io::IO, sc::StopWhenAny)
+function Base.show(io::IO, sc::StopWhenAny)
     s = ""
     for sc_i in sc.criteria
         s = s * "\n * " * replace("$(sc_i)", "\n" => "\n    ") #increase indent
@@ -235,10 +234,10 @@ function get_reason(sc::Union{StopWhenAll,StopWhenAny}, scs::GroupStoppingCriter
             )...,
         )
     end
-    return ""
+    return nothing
 end
 
-function summary(sc::StopWhenAny, scs::GroupStoppingCriterionState)
+function Base.summary(io::IO, sc::StopWhenAny, scs::GroupStoppingCriterionState)
     has_stopped = (scs.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop When _one_ of the following are fulfilled:\n"
@@ -248,7 +247,7 @@ function summary(sc::StopWhenAny, scs::GroupStoppingCriterionState)
     end
     return "$(r)Overall: $s"
 end
-function summary(sc::StopWhenAll, scs::GroupStoppingCriterionState)
+function Base.summary(io::IO, sc::StopWhenAll, scs::GroupStoppingCriterionState)
     has_stopped = (scs.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop When _all_ of the following are fulfilled:\n"
@@ -256,7 +255,7 @@ function summary(sc::StopWhenAll, scs::GroupStoppingCriterionState)
         s = replace(summary(sc_i, scs_i), "\n" => "\n    ")
         r = "$r    $(s)\n"
     end
-    return "$(r)Overall: $s"
+    return print(io, "$(r)Overall: $s")
 end
 # Meta functors
 function (scs::GroupStoppingCriterionState)(
@@ -274,14 +273,6 @@ function (scs::GroupStoppingCriterionState)(
     return false
 end
 
-# `_fast_any(f, tup::Tuple)`` is functionally equivalent to `any(f, tup)`` but on Julia 1.10
-# this implementation is faster on heterogeneous tuples
-@inline _fast_any(f, tup::Tuple{}) = true
-@inline _fast_any(f, tup::Tuple{T}) where {T} = f(tup[1])
-@inline function _fast_any(f, tup::Tuple)
-    f(first(tup[1])) || _fast_any(f, Base.tail(tup))
-end
-
 function (scs::GroupStoppingCriterionState)(
     p::Problem,
     a::Algorithm,
@@ -290,7 +281,7 @@ function (scs::GroupStoppingCriterionState)(
 )
     k = get_iteration(s)
     (k == 0) && (c.at_iteration = -1) # reset on init
-    if _fast_any(st -> st[2](p, a, s, st[1]), zip(sc.criteria, scs.criteria_states))
+    if any(st -> st[2](p, a, s, st[1]), zip(sc.criteria, scs.criteria_states))
         c.at_iteration = k
         return true
     end
@@ -368,13 +359,13 @@ function get_reason(sc::StopAfterIteration, scs::DefaultStoppingCriterionState)
     if scs.at_iteration >= sc.max_iterations
         return "At iteration $(scs.at_iteration) the algorithm reached its maximal number of iterations ($(sc.max_iterations)).\n"
     end
-    return ""
+    return nothing
 end
 indicates_convergence(sc::StopAfterIteration) = false
-function summary(sc::StopAfterIteration, scs::DefaultStoppingCriterionState)
+function Base.summary(io::IO, sc::StopAfterIteration, scs::DefaultStoppingCriterionState)
     has_stopped = (scs.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return "Max Iteration $(sc.max_iterations):\t$s"
+    return print(io, "Max Iteration $(sc.max_iterations):\t$s")
 end
 
 """
@@ -462,11 +453,11 @@ function get_reason(sc::StopAfter, scs::StopAfterTimePeriodState)
     if (scs.at_iteration >= 0)
         return "After iteration $(scs.at_iteration) the algorithm ran for $(floor(scs.time, typeof(sc.threshold))) (threshold: $(sc.threshold)).\n"
     end
-    return ""
+    return nothing
 end
-function summary(sc::StopAfter, scs::StopAfterTimePeriodState)
+function Base.summary(io::IO, sc::StopAfter, scs::StopAfterTimePeriodState)
     has_stopped = (scs.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return "stopped after $(sc.threshold):\t$s"
+    return print(io, "stopped after $(sc.threshold):\t$s")
 end
 indicates_convergence(sc::StopAfter) = false
