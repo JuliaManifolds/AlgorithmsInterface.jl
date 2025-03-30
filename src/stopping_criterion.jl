@@ -99,10 +99,9 @@ when _all_ indicate to stop.
 """
 struct StopWhenAll{TCriteria<:Tuple} <: StoppingCriterion
     criteria::TCriteria
-    StopWhenAll(c::Vector{StoppingCriterion}) = new{typeof(tuple(c...))}(tuple(c...))
-    StopWhenAll(c...) = new{typeof(c)}(c)
 end
-
+StopWhenAll(c::AbstractVector{<:StoppingCriterion}) = StopWhenAll(Tuple(c))
+StopWhenAll(c...) = StopWhenAll(c)
 function indicates_convergence(sc::StopWhenAll)
     return any(indicates_convergence, sc.criteria)
 end
