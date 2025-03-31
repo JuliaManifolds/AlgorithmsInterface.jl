@@ -19,6 +19,7 @@ e.g. as accessors
 The following methods should be implemented for an [`Algorithm`](@ref)
 
 * [`get_stopping_criterion`](@ref) to return the algorithms stopping criterion.
+
 ## Example
 
 For a [gradient descent](https://en.wikipedia.org/wiki/Gradient_descent) algorithm
@@ -27,10 +28,10 @@ the algorithm would specify which step size selection to use.
 abstract type Algorithm end
 
 """
-    get_stopping_criterion(a::Algorithm)
+    get_stopping_criterion(algorithm::Algorithm)
 
-Return the [`StoppingCriterion`](@ref) of the [`Algorithm`](@ref) `a`.
+Return the [`StoppingCriterion`](@ref) of the [`Algorithm`](@ref).
 
-The default assumes that the criterion is stored in `s.stopping_criterion_state`.
+The default assumes that the criterion is stored in `algorithm.stopping_criterion`.
 """
-get_stopping_criterion(a::Algorithm) = a.stopping_criterion
+get_stopping_criterion(algorithm::Algorithm) = algorithm.stopping_criterion

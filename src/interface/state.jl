@@ -24,48 +24,48 @@ their accessors.
 
 The following methods should be implemented for a state
 
-* [`get_iteration`](@ref)`(s)` to return the current iteration number
-* [`increment!](@ref)`(s)`
+* [`get_iteration`](@ref)`(state)` to return the current iteration number
+* [`increment!](@ref)`(state)`
 * [`get_stopping_criterion_state`](@ref) return the [`StoppingCriterionState`](@ref)
 * [`get_iterate`](@ref) return the current iterate ``x^{(k)}``.
 """
 abstract type State end
 
 """
-    get_iterate(s::State)
+    get_iterate(state::State)
 
-Return the current iterate ``x^{(k)}`` of a [`State`](@ref) `s`
+Return the current iterate ``x^{(k)}`` of a [`State`](@ref).
 
-The default assumes that the current iteration is stored in `s.iterate`.
+The default assumes that the current iterate is stored in `state.iterate`.
 """
-get_iterate(s::State) = s.iterate
-
-"""
-    get_iteration(s::State)
-
-Return the current iteration a [`State`](@ref) `s` either is currently performing or was last performed
-
-The default assumes that the current iteration is stored in `s.iteration`.
-"""
-get_iteration(s::State) = s.iteration
+get_iterate(state::State) = state.iterate
 
 """
-    increment!(s::State)
+    get_iteration(state::State)
 
-Return the current iteration a [`State`](@ref) `s` either is currently performing or was last performed
+Return the current iteration a [`State`](@ref) either is currently performing or was last performed
 
-The default assumes that the current iteration is stored in `s.iteration`.
+The default assumes that the current iteration is stored in `state.iteration`.
 """
-function increment!(s::State)
-    s.iteration += 1
+get_iteration(state::State) = state.iteration
+
+"""
+    increment!(state::State)
+
+Increment the current iteration a [`State`](@ref) either is currently performing or was last performed
+
+The default assumes that the current iteration is stored in `state.iteration`.
+"""
+function increment!(state::State)
+    state.iteration += 1
     return s
 end
 
 """
-    get_stopping_criterion_state(s::State)
+    get_stopping_criterion_state(state::State)
 
-Return the [`StoppingCriterionState`](@ref) of the [`State`](@ref) `s`.
+Return the [`StoppingCriterionState`](@ref) of the given [`State`](@ref).
 
-The default assumes that the criterion is stored in `s.stopping_criterion_state`.
+The default assumes that the criterion is stored in `state.stopping_criterion_state`.
 """
-get_stopping_criterion_state(s::State) = s.stopping_criterion_state
+get_stopping_criterion_state(state::State) = state.stopping_criterion_state

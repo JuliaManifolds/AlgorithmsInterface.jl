@@ -202,24 +202,24 @@ mutable struct GroupStoppingCriterionState{TCriteriaStates<:Tuple} <: StoppingCr
 end
 
 function initialize_state(
-    p::Problem,
-    a::Algorithm,
+    problem::Problem,
+    algorithm::Algorithm,
     sc::Union{StopWhenAll,StopWhenAny};
     kwargs...,
 )
     return GroupStoppingCriterionState([
-        initialize_state(p, a, sc_i; kwargs) for sc_i in sc.criteria
+        initialize_state(problem, algorithm, sc_i; kwargs) for sc_i in sc.criteria
     ])
 end
 function initialize_state!(
     scs::GroupStoppingCriterionState,
-    p::Problem,
-    a::Algorithm,
+    problem::Problem,
+    algorithm::Algorithm,
     sc::Union{StopWhenAll,StopWhenAny};
     kwargs...,
 )
     for (scs_i, sc_i) in zip(scs.criteria_states, sc.criteria)
-        initialize_state!(scs_i, p, a, sc_i; kwargs...)
+        initialize_state!(scs_i, problem, algorithm, sc_i; kwargs...)
     end
     scs.at_iteration = -1
     return scs
@@ -259,14 +259,14 @@ function Base.summary(io::IO, sc::StopWhenAll, scs::GroupStoppingCriterionState)
 end
 # Meta functors
 function (scs::GroupStoppingCriterionState)(
-    p::Problem,
-    a::Algorithm,
-    s::State,
+    problem::Problem,
+    algorithm::Algorithm,
+    state::State,
     sc::StopWhenAll,
 )
-    k = get_iteration(s)
+    k = get_iteration(state)
     (k == 0) && (scs.at_iteration = -1) # reset on init
-    if all(st -> st[2](p, a, s, st[1]), zip(sc.criteria, scs.criteria_states))
+    if all(st -> st[2](problem, algorithm, state, st[1]), zip(sc.criteria, scs.criteria_states))
         scs.at_iteration = k
         return true
     end
@@ -274,14 +274,14 @@ function (scs::GroupStoppingCriterionState)(
 end
 
 function (scs::GroupStoppingCriterionState)(
-    p::Problem,
-    a::Algorithm,
-    s::State,
+    problem::Problem,
+    algorithm::Algorithm,
+    state::State,
     sc::StopWhenAny,
 )
-    k = get_iteration(s)
+    k = get_iteration(state)
     (k == 0) && (c.at_iteration = -1) # reset on init
-    if any(st -> st[2](p, a, s, st[1]), zip(sc.criteria, scs.criteria_states))
+    if any(st -> st[2](problem, algorithm, state, st[1]), zip(sc.criteria, scs.criteria_states))
         c.at_iteration = k
         return true
     end
@@ -344,10 +344,10 @@ end
 function (scs::DefaultStoppingCriterionState)(
     ::Problem,
     ::Algorithm,
-    s::State,
+    state::State,
     sc::StopAfterIteration,
 )
-    k = get_iteration(s)
+    k = get_iteration(state)
     (k == 0) && (scs.at_iteration = -1)
     if k >= sc.max_iterations
         scs.at_iteration = k
@@ -434,8 +434,8 @@ function initialize_state!(
     return scs
 end
 
-function (scs::StopAfterTimePeriodState)(::Problem, ::Algorithm, s::State, sc::StopAfter)
-    k = get_iteration(s)
+function (scs::StopAfterTimePeriodState)(::Problem, ::Algorithm, state::State, sc::StopAfter)
+    k = get_iteration(state)
     if value(scs.start) == 0 || k <= 0 # (re)start timer
         scs.at_iteration = -1
         scs.start = Nanosecond(time_ns())
