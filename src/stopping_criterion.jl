@@ -266,7 +266,10 @@ function (scs::GroupStoppingCriterionState)(
 )
     k = get_iteration(state)
     (k == 0) && (scs.at_iteration = -1) # reset on init
-    if all(st -> st[2](problem, algorithm, state, st[1]), zip(sc.criteria, scs.criteria_states))
+    if all(
+        st -> st[2](problem, algorithm, state, st[1]),
+        zip(sc.criteria, scs.criteria_states),
+    )
         scs.at_iteration = k
         return true
     end
@@ -281,7 +284,10 @@ function (scs::GroupStoppingCriterionState)(
 )
     k = get_iteration(state)
     (k == 0) && (c.at_iteration = -1) # reset on init
-    if any(st -> st[2](problem, algorithm, state, st[1]), zip(sc.criteria, scs.criteria_states))
+    if any(
+        st -> st[2](problem, algorithm, state, st[1]),
+        zip(sc.criteria, scs.criteria_states),
+    )
         c.at_iteration = k
         return true
     end
@@ -434,7 +440,12 @@ function initialize_state!(
     return scs
 end
 
-function (scs::StopAfterTimePeriodState)(::Problem, ::Algorithm, state::State, sc::StopAfter)
+function (scs::StopAfterTimePeriodState)(
+    ::Problem,
+    ::Algorithm,
+    state::State,
+    sc::StopAfter,
+)
     k = get_iteration(state)
     if value(scs.start) == 0 || k <= 0 # (re)start timer
         scs.at_iteration = -1
