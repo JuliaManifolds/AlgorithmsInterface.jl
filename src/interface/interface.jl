@@ -42,7 +42,7 @@ By default this method continues to call [`solve!`](@ref).
 """
 function solve(problem::Problem, algorithm::Algorithm; kwargs...)
     state = initialize_state(problem, algorithm; kwargs...)
-    return solve!(state, problem, algorithm; kwargs...)
+    return solve!(problem, algorithm, state; kwargs...)
 end
 
 @doc """

@@ -58,7 +58,7 @@ The default assumes that the current iteration is stored in `state.iteration`.
 """
 function increment!(state::State)
     state.iteration += 1
-    return s
+    return state
 end
 
 """
