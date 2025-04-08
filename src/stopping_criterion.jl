@@ -1,17 +1,19 @@
 @doc """
     StoppingCriterion
 
-An abstract type to represent a stopping criterion.
+An abstract type to represent a stopping criterion of an [`Algorithm`](@ref).
 
-A concrete [`StoppingCriterion`](@ref) `sc` should also implement a
-[`initialize_state(problem::Problem, algorithm::Algorithm, sc::StoppingCriterion; kwargs...)`](@ref) function to create its accompanying
+A concrete [`StoppingCriterion`](@ref) should also implement a
+[`initialize_state(problem::Problem, algorithm::Algorithm, stopping_criterion::StoppingCriterion; kwargs...)`](@ref) function to create its accompanying
 [`StoppingCriterionState`](@ref).
-as well as the corresponting mutating variant to reset such a [`StoppingCriterionState`](@ref).
+as well as the corresponding mutating variant to reset such a [`StoppingCriterionState`](@ref).
 
 It should usually implement
 
-* `indicates_convergence(sc)` a boolean whether or not this stopping criterion would indicate
-  that the algorithm has converged, if it indicates to stop.
+* [`indicates_convergence`](@ref)`(stopping_criterion)`
+* [`indicates_convergence`](@ref)`(stopping_criterion, stopping_criterion_state)`
+* [`is_finished!`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
+* [`is_finished`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
 """
 abstract type StoppingCriterion end
 
@@ -19,25 +21,22 @@ abstract type StoppingCriterion end
     StoppingCriterionState
 
 An abstract type to represent a stopping criterion state within a [`State`](@ref).
+It represents the concrete state a [`StoppingCriterion`](@ref) is in.
 
-Any concrete stopping criterion should be implemented as a functor,
-that takes the “usual tuple” `(problem, algorithm, state, stopping_criterion)`
-of a [`Problem`](@ref) `p`, an [`Algorithm`](@ref) and a [`State`](@ref) as input,
-as well as the corresponding [`StoppingCriterion`](@ref). Though this is usually stored¨
-in the [`Algorithm`](@ref) `algorithm`, the extra parameter allows both for more flexibility and
-for multiple dispatch.
-The concrete [`StoppingCriterionState`](@ref) should be part of the [`State`](@ref) `state`.
+It should usually implement
 
-The functor might modify the stopping criterion state.
+* [`get_reason`](@ref)`(stopping_criterion, stopping_criterion_state)`
+* [`indicates_convergence`](@ref)`(stopping_criterion, stopping_criterion_state)`
+* [`is_finished!`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
+* [`is_finished`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
 """
 abstract type StoppingCriterionState end
 
 function get_reason end
 @doc """
-    get_reason(sc::StoppingCriterion, scs::StoppingCriterionState)
+    get_reason(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
 
-Provide a reason in human readable text as to why a [`StoppingCriterion`](@ref) `sc
-with [`StoppingCriterionState`](@ref) `scs` indicated to stop.
+Provide a reason in human readable text as to why a [`StoppingCriterion`](@ref) with [`StoppingCriterionState`](@ref) indicated to stop.
 If it does not indicate to stop, this should return an empty string.
 
 Providing the iteration at which this indicated to stop in the reason would be preferable.
@@ -46,28 +45,75 @@ get_reason(::StoppingCriterion, ::StoppingCriterionState)
 
 function indicates_convergence end
 @doc """
-    indicates_convergence(sc::StoppingCriterion)
+    indicates_convergence(stopping_criterion::StoppingCriterion)
 
-Return whether or not a [`StoppingCriterion`](@ref) `sc` indicates convergence.
+Return whether or not a [`StoppingCriterion`](@ref) indicates convergence.
 """
-indicates_convergence(sc::StoppingCriterion)
+indicates_convergence(stopping_criterion::StoppingCriterion)
 
 @doc """
-    indicates_convergence(sc::StoppingCriterion, ::StoppingCriterionState)
+    indicates_convergence(stopping_criterion::StoppingCriterion, ::StoppingCriterionState)
 
-Return whether or not a [`StoppingCriterion`](@ref) `sc` indicates convergence
+Return whether or not a [`StoppingCriterion`](@ref) indicates convergence
 when it is in [`StoppingCriterionState`](@ref)
 
 By default this checks whether the [`StoppingCriterion`](@ref) has actually stopped.
-If so it returns whether `sc` itself indicates convergence, otherwise it returns `false`,
+If so it returns whether `stopping_criterion` itself indicates convergence, otherwise it returns `false`,
 since the algorithm has then not yet stopped.
 """
-function indicates_convergence(sc::StoppingCriterion, scs::StoppingCriterionState)
-    return isnothing(get_reason(sc, scs)) ? indicates_convergence(sc) : false
+function indicates_convergence(
+    stopping_criterion::StoppingCriterion,
+    stopping_criterion_state::StoppingCriterionState,
+)
+    return isnothing(get_reason(stopping_criterion, stopping_criterion_state)) ?
+           indicates_convergence(stopping_criterion) : false
 end
 
+_doc_is_finished = """
+    is_finished(problem::Problem, algorithm::Algorithm, state::State)
+    is_finished(problem::Problem, algorithm::Algorithm, state::State, stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
+    is_finished!(problem::Problem, algorithm::Algorithm, state::State)
+    is_finished!(problem::Problem, algorithm::Algorithm, state::State, stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
+
+Indicate whether an [`Algorithm`](@ref) solving [`Problem`](@ref) is finished having reached
+a certain [`State`](@ref). The variant with three arguments by default extracts the
+[`StoppingCriterion`](@ref) and its [`StoppingCriterionState`](@ref) and their actual
+checks are performed in the implementation with five arguments.
+
+The mutating variant does alter the `stopping_criterion_state` and and should only be called
+once per iteration, the other one merely inspects the current status without mutation.
+"""
+
+@doc "$(_doc_is_finished)"
+function is_finished(problem::Problem, algorithm::Algorithm, state::State)
+    return is_finished(
+        problem,
+        algorithm,
+        state,
+        get_stopping_criterion(algorithm),
+        get_stopping_criterion_state(state),
+    )
+end
+
+@doc "$(_doc_is_finished)"
+is_finished(::Problem, ::Algorithm, ::State, ::StoppingCriterion, ::StoppingCriterionState)
+
+@doc "$(_doc_is_finished)"
+function is_finished!(problem::Problem, algorithm::Algorithm, state::State)
+    return is_finished!(
+        problem,
+        algorithm,
+        state,
+        get_stopping_criterion(algorithm),
+        get_stopping_criterion_state(state),
+    )
+end
+
+@doc "$(_doc_is_finished)"
+is_finished!(::Problem, ::Algorithm, ::State, ::StoppingCriterion, ::StoppingCriterionState)
+
 @doc """
-    summary(io::IO, sc::StoppingCriterion, scs::StoppingCriterionState)
+    summary(io::IO, stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
 
 Provide a summary of the status of a stopping criterion – its parameters and whether
 it currently indicates to stop. It should not be longer than one line
@@ -101,14 +147,15 @@ struct StopWhenAll{TCriteria<:Tuple} <: StoppingCriterion
 end
 StopWhenAll(c::AbstractVector{<:StoppingCriterion}) = StopWhenAll(Tuple(c))
 StopWhenAll(c...) = StopWhenAll(c)
-function indicates_convergence(sc::StopWhenAll)
-    return any(indicates_convergence, sc.criteria)
+function indicates_convergence(stop_when_all::StopWhenAll)
+    return any(indicates_convergence, stop_when_all.criteria)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sc::StopWhenAll)
+function Base.show(io::IO, ::MIME"text/plain", stop_when_all::StopWhenAll)
     s = ""
-    for sc_i in sc.criteria
-        s = s * "\n * " * replace("$(sc_i)", "\n" => "\n    ") #increase indent
+    for stopping_criterion in stop_when_all.criteria
+        #add every SC to the list but increase indent
+        s = s * "\n * " * replace("$(stopping_criterion)", "\n" => "\n    ")
     end
     return print(io, "StopWhenAll with the Stopping Criteria\n$(s)")
 end
@@ -151,13 +198,13 @@ struct StopWhenAny{TCriteria<:Tuple} <: StoppingCriterion
     StopWhenAny(c::StoppingCriterion...) = new{typeof(c)}(c)
 end
 
-function indicates_convergence(sc::StopWhenAny)
-    return all(indicates_convergence, sc.criteria)
+function indicates_convergence(stop_when_any::StopWhenAny)
+    return all(indicates_convergence, stop_when_any.criteria)
 end
-function Base.show(io::IO, ::MIME"text/plain", sc::StopWhenAny)
+function Base.show(io::IO, ::MIME"text/plain", stop_when_any::StopWhenAny)
     s = ""
-    for sc_i in sc.criteria
-        s = s * "\n * " * replace("$(sc_i)", "\n" => "\n    ") #increase indent
+    for stopping_criterion in stop_when_any.criteria
+        s = s * "\n * " * replace("$(stopping_criterion)", "\n" => "\n    ") #increase indent
     end
     return print(io, "StopWhenAny with the Stopping Criteria\n$(s)")
 end
@@ -201,97 +248,155 @@ mutable struct GroupStoppingCriterionState{TCriteriaStates<:Tuple} <: StoppingCr
     GroupStoppingCriterionState(c::StoppingCriterionState...) = new{typeof(c)}(c, -1)
 end
 
-function initialize_state(
-    problem::Problem,
-    algorithm::Algorithm,
-    sc::Union{StopWhenAll,StopWhenAny};
-    kwargs...,
+function get_reason(
+    stop_when::Union{StopWhenAll,StopWhenAny},
+    stopping_criterion_states::GroupStoppingCriterionState,
 )
-    return GroupStoppingCriterionState([
-        initialize_state(problem, algorithm, sc_i; kwargs) for sc_i in sc.criteria
-    ])
-end
-function initialize_state!(
-    scs::GroupStoppingCriterionState,
-    problem::Problem,
-    algorithm::Algorithm,
-    sc::Union{StopWhenAll,StopWhenAny};
-    kwargs...,
-)
-    for (scs_i, sc_i) in zip(scs.criteria_states, sc.criteria)
-        initialize_state!(scs_i, problem, algorithm, sc_i; kwargs...)
-    end
-    scs.at_iteration = -1
-    return scs
-end
-
-function get_reason(sc::Union{StopWhenAll,StopWhenAny}, scs::GroupStoppingCriterionState)
-    if scs.at_iteration >= 0
+    if stopping_criterion_states.at_iteration >= 0
         return string(
             (
-                get_reason(sc_i, scs_i) for
-                (sc_i, scs_i) in zip(sc.criteria, scs.criteria_states)
+                get_reason(stopping_criterion, stopping_criterion_state) for
+                (stopping_criterion, stopping_criterion_state) in
+                zip(stop_when.criteria, stopping_criterion_states.criteria_states)
             )...,
         )
     end
     return nothing
 end
 
-function Base.summary(io::IO, sc::StopWhenAny, scs::GroupStoppingCriterionState)
-    has_stopped = (scs.at_iteration >= 0)
-    s = has_stopped ? "reached" : "not reached"
-    r = "Stop When _one_ of the following are fulfilled:\n"
-    for (sc_i, scs_i) in zip(sc.criteria, scs.criteria_states)
-        s = replace(summary(sc_i, scs_i), "\n" => "\n    ")
-        r = "$r    $(s)\n"
-    end
-    return "$(r)Overall: $s"
+function initialize_state(
+    problem::Problem,
+    algorithm::Algorithm,
+    stop_when::Union{StopWhenAll,StopWhenAny};
+    kwargs...,
+)
+    return GroupStoppingCriterionState([
+        initialize_state(problem, algorithm, stopping_criterion; kwargs...) for
+        stopping_criterion in stop_when.criteria
+    ])
 end
-function Base.summary(io::IO, sc::StopWhenAll, scs::GroupStoppingCriterionState)
-    has_stopped = (scs.at_iteration >= 0)
-    s = has_stopped ? "reached" : "not reached"
-    r = "Stop When _all_ of the following are fulfilled:\n"
-    for (sc_i, scs_i) in zip(sc.criteria, scs.criteria_states)
-        s = replace(summary(sc_i, scs_i), "\n" => "\n    ")
-        r = "$r    $(s)\n"
+function initialize_state!(
+    stopping_criterion_states::GroupStoppingCriterionState,
+    problem::Problem,
+    algorithm::Algorithm,
+    stop_when::Union{StopWhenAll,StopWhenAny};
+    kwargs...,
+)
+    for (stopping_criterion_state, stopping_criterion) in
+        zip(stopping_criterion_states.criteria_states, stop_when.criteria)
+        initialize_state!(
+            stopping_criterion_state,
+            problem,
+            algorithm,
+            stopping_criterion;
+            kwargs...,
+        )
     end
-    return print(io, "$(r)Overall: $s")
+    stopping_criterion_states.at_iteration = -1
+    return stopping_criterion_states
 end
-# Meta functors
-function (scs::GroupStoppingCriterionState)(
+
+function is_finished(
     problem::Problem,
     algorithm::Algorithm,
     state::State,
-    sc::StopWhenAll,
+    stop_when_all::StopWhenAll,
+    stopping_criterion_states::GroupStoppingCriterionState,
 )
     k = get_iteration(state)
-    (k == 0) && (scs.at_iteration = -1) # reset on init
+    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
     if all(
-        st -> st[2](problem, algorithm, state, st[1]),
-        zip(sc.criteria, scs.criteria_states),
+        st -> is_finished(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
     )
-        scs.at_iteration = k
+        return true
+    end
+    return false
+end
+function is_finished!(
+    problem::Problem,
+    algorithm::Algorithm,
+    state::State,
+    stop_when_all::StopWhenAll,
+    stopping_criterion_states::GroupStoppingCriterionState,
+)
+    k = get_iteration(state)
+    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
+    if all(
+        st -> is_finished!(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
+    )
+        stopping_criterion_states.at_iteration = k
         return true
     end
     return false
 end
 
-function (scs::GroupStoppingCriterionState)(
+function is_finished(
     problem::Problem,
     algorithm::Algorithm,
     state::State,
-    sc::StopWhenAny,
+    stop_when_any::StopWhenAny,
+    stopping_criterion_states::GroupStoppingCriterionState,
 )
     k = get_iteration(state)
-    (k == 0) && (c.at_iteration = -1) # reset on init
+    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
     if any(
-        st -> st[2](problem, algorithm, state, st[1]),
-        zip(sc.criteria, scs.criteria_states),
+        st -> is_finished(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
     )
-        c.at_iteration = k
         return true
     end
     return false
+end
+function is_finished!(
+    problem::Problem,
+    algorithm::Algorithm,
+    state::State,
+    stop_when_any::StopWhenAny,
+    stopping_criterion_states::GroupStoppingCriterionState,
+)
+    k = get_iteration(state)
+    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
+    if all(
+        st -> is_finished!(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
+    )
+        stopping_criterion_states.at_iteration = k
+        return true
+    end
+    return false
+end
+
+function Base.summary(
+    io::IO,
+    stop_when_any::StopWhenAny,
+    stopping_criterion_states::GroupStoppingCriterionState,
+)
+    has_stopped = (stopping_criterion_states.at_iteration >= 0)
+    s = has_stopped ? "reached" : "not reached"
+    r = "Stop When _one_ of the following are fulfilled:\n"
+    for (stopping_criterion, stopping_criterion_state) in
+        zip(stop_when_any.criteria, stopping_criterion_states.criteria_states)
+        s = replace(summary(stopping_criterion, stopping_criterion_state), "\n" => "\n    ")
+        r = "$r    $(s)\n"
+    end
+    return print(io, "$(r)Overall: $s")
+end
+function Base.summary(
+    io::IO,
+    stop_when_all::StopWhenAll,
+    stopping_criterion_states::GroupStoppingCriterionState,
+)
+    has_stopped = (stopping_criterion_states.at_iteration >= 0)
+    s = has_stopped ? "reached" : "not reached"
+    r = "Stop When _all_ of the following are fulfilled:\n"
+    for (stopping_criterion, stopping_criterion_state) in
+        zip(stop_when_all.criteria, stopping_criterion_states.criteria_states)
+        s = replace(summary(stopping_criterion, stopping_criterion_state), "\n" => "\n    ")
+        r = "$r    $(s)\n"
+    end
+    return print(io, "$(r)Overall: $s")
 end
 
 #
@@ -337,41 +442,59 @@ end
 initialize_state(::Problem, ::Algorithm, ::StopAfterIteration; kwargs...) =
     DefaultStoppingCriterionState()
 function initialize_state!(
-    scs::DefaultStoppingCriterionState,
+    stopping_criterion_state::DefaultStoppingCriterionState,
     ::Problem,
     ::Algorithm,
     ::StopAfterIteration;
     kwargs...,
 )
-    scs.at_iteration = -1
-    return scs
+    stopping_criterion_state.at_iteration = -1
+    return stopping_criterion_state
 end
 
-function (scs::DefaultStoppingCriterionState)(
+
+function is_finished(
     ::Problem,
     ::Algorithm,
     state::State,
-    sc::StopAfterIteration,
+    stop_after_iteration::StopAfterIteration,
+    stopping_criterion_state::DefaultStoppingCriterionState,
+)
+    return get_iteration(state) >= stop_after_iteration.max_iterations
+end
+function is_finished!(
+    ::Problem,
+    ::Algorithm,
+    state::State,
+    stop_after_iteration::StopAfterIteration,
+    stopping_criterion_state::DefaultStoppingCriterionState,
 )
     k = get_iteration(state)
-    (k == 0) && (scs.at_iteration = -1)
-    if k >= sc.max_iterations
-        scs.at_iteration = k
+    (k == 0) && (stopping_criterion_state.at_iteration = -1)
+    if k >= stop_after_iteration.max_iterations
+        stopping_criterion_state.at_iteration = k
         return true
     end
     return false
 end
-function get_reason(sc::StopAfterIteration, scs::DefaultStoppingCriterionState)
-    if scs.at_iteration >= sc.max_iterations
-        return "At iteration $(scs.at_iteration) the algorithm reached its maximal number of iterations ($(sc.max_iterations)).\n"
+function get_reason(
+    stop_after_iteration::StopAfterIteration,
+    stopping_criterion_state::DefaultStoppingCriterionState,
+)
+    if stopping_criterion_state.at_iteration >= stop_after_iteration.max_iterations
+        return "At iteration $(stopping_criterion_state.at_iteration) the algorithm reached its maximal number of iterations ($(stop_after_iteration.max_iterations)).\n"
     end
     return nothing
 end
-indicates_convergence(sc::StopAfterIteration) = false
-function Base.summary(io::IO, sc::StopAfterIteration, scs::DefaultStoppingCriterionState)
-    has_stopped = (scs.at_iteration >= 0)
+indicates_convergence(stop_after_iteration::StopAfterIteration) = false
+function Base.summary(
+    io::IO,
+    stop_after_iteration::StopAfterIteration,
+    stopping_criterion_state::DefaultStoppingCriterionState,
+)
+    has_stopped = (stopping_criterion_state.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return print(io, "Max Iteration $(sc.max_iterations):\t$s")
+    return print(io, "Max Iteration $(stop_after_iteration.max_iterations):\t$s")
 end
 
 """
@@ -428,47 +551,66 @@ initialize_state(::Problem, ::Algorithm, ::StopAfter; kwargs...) =
     StopAfterTimePeriodState()
 
 function initialize_state!(
-    scs::DefaultStoppingCriterionState,
+    stopping_criterion_state::DefaultStoppingCriterionState,
     ::Problem,
     ::Algorithm,
     ::StopAfter;
     kwargs...,
 )
-    scs.start = Nanosecond(0)
-    scs.time = Nanosecond(0)
-    scs.at_iteration = -1
-    return scs
+    stopping_criterion_state.start = Nanosecond(0)
+    stopping_criterion_state.time = Nanosecond(0)
+    stopping_criterion_state.at_iteration = -1
+    return stopping_criterion_state
 end
 
-function (scs::StopAfterTimePeriodState)(
+function is_finished(
     ::Problem,
     ::Algorithm,
     state::State,
-    sc::StopAfter,
+    stop_after::StopAfter,
+    stop_after_state::StopAfterTimePeriodState,
 )
     k = get_iteration(state)
-    if value(scs.start) == 0 || k <= 0 # (re)start timer
-        scs.at_iteration = -1
-        scs.start = Nanosecond(time_ns())
-        scs.time = Nanosecond(0)
+    # Just check whether the (last recorded) time is beyond the threshold
+    return (k > 0 && (stop_after_state.time > Nanosecond(stop_after.threshold)))
+end
+function is_finished!(
+    ::Problem,
+    ::Algorithm,
+    state::State,
+    stop_after::StopAfter,
+    stop_after_state::StopAfterTimePeriodState,
+)
+    k = get_iteration(state)
+    if value(stop_after_state.start) == 0 || k <= 0 # (re)start timer
+        stop_after_state.at_iteration = -1
+        stop_after_state.start = Nanosecond(time_ns())
+        stop_after_state.time = Nanosecond(0)
     else
-        scs.time = Nanosecond(time_ns()) - scs.start
-        if k > 0 && (scs.time > Nanosecond(sc.threshold))
-            scs.at_iteration = k
+        stop_after_state.time = Nanosecond(time_ns()) - stopping_criterion_state.start
+        if k > 0 && (stop_after_state.time > Nanosecond(stop_after.threshold))
+            stop_after_state.at_iteration = k
             return true
         end
     end
     return false
 end
-function get_reason(sc::StopAfter, scs::StopAfterTimePeriodState)
-    if (scs.at_iteration >= 0)
-        return "After iteration $(scs.at_iteration) the algorithm ran for $(floor(scs.time, typeof(sc.threshold))) (threshold: $(sc.threshold)).\n"
+function get_reason(
+    stop_after::StopAfter,
+    stopping_criterion_state::StopAfterTimePeriodState,
+)
+    if (stopping_criterion_state.at_iteration >= 0)
+        return "After iteration $(stopping_criterion_state.at_iteration) the algorithm ran for $(floor(stopping_criterion_state.time, typeof(stop_after.threshold))) (threshold: $(stop_after.threshold)).\n"
     end
     return nothing
 end
-function Base.summary(io::IO, sc::StopAfter, scs::StopAfterTimePeriodState)
-    has_stopped = (scs.at_iteration >= 0)
+function Base.summary(
+    io::IO,
+    stop_after::StopAfter,
+    stopping_criterion_state::StopAfterTimePeriodState,
+)
+    has_stopped = (stopping_criterion_state.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return print(io, "stopped after $(sc.threshold):\t$s")
+    return print(io, "stopped after $(stop_after.threshold):\t$s")
 end
-indicates_convergence(sc::StopAfter) = false
+indicates_convergence(stop_after::StopAfter) = false

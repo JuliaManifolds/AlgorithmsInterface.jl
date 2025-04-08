@@ -17,17 +17,6 @@ function initialize_state! end
 @doc "$(_doc_init_state)"
 initialize_state!(::Problem, ::Algorithm, ::State; kwargs...)
 
-@doc """
-    is_finished(problem::Problem, algorithm::Algorithm, state::State) -> Bool
-
-Return `true` if the [`Algorithm`](@ref) solving the [`Problem`](@ref) at the current [`State`](@ref) is finished.
-"""
-function is_finished(problem::Problem, algorithm::Algorithm, state::State)
-    scs = get_stopping_criterion_state(state)
-    sc = get_stopping_criterion(algorithm)
-    return scs(problem, algorithm, state, sc)
-end
-
 # has to be defined before used in solve but is documented alphabetically after
 
 @doc """
@@ -55,7 +44,7 @@ All keyword arguments are passed to the [`initialize_state!`](@ref)`(problem, al
 """
 function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
     initialize_state!(problem, algorithm, state; kwargs...)
-    while !is_finished(problem, algorithm, state)
+    while !is_finished!(problem, algorithm, state)
         increment!(state)
         step!(problem, algorithm, state)
     end
