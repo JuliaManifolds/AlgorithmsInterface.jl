@@ -65,8 +65,8 @@ function indicates_convergence(
     stopping_criterion::StoppingCriterion,
     stopping_criterion_state::StoppingCriterionState,
 )
-    return isnothing(get_reason(stopping_criterion, stopping_criterion_state)) ?
-           indicates_convergence(stopping_criterion) : false
+    return isnothing(get_reason(stopping_criterion, stopping_criterion_state)) &&
+           indicates_convergence(stopping_criterion)
 end
 
 _doc_is_finished = """
