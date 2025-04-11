@@ -1,6 +1,17 @@
 # 🧮 AlgorithmsInterface.jl
 
-`AlgorithmsInterface.jl` is a Julia package to provide a common interface to run iterative tasks. **Algorithm** here refers to an iterative sequence of commands, that are run until a certain stopping criterion is met.
+`AlgorithmsInterface.jl` is a Julia package to provide a common interface to run iterative tasks.
+**Algorithm** here refers to an iterative sequence of commands, that are run until a certain stopping criterion is met.
+
+[![docs][docs-dev-img]][docs-dev-url] ![CI][ci-url] [![codecov][codecov-img]][codecov-url]
+
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://JuliaManifolds.github.io/AlgorithmsInterface.jl/dev/
+
+[codecov-img]: https://codecov.io/gh/JuliaManifolds/AlgorithmsInterface.jl/graph/badge.svg?token=1OBDY03SUP
+[codecov-url]: https://codecov.io/gh/JuliaManifolds/AlgorithmsInterface.jl
+
+[ci-url]: https://github.com/JuliaManifolds/AlgorithmsInterface.jl/workflows/ci/badge.svg
 
 # Statement of need
 
