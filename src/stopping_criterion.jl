@@ -433,7 +433,7 @@ storing the iteration number when it (last) indicated to stop).
   * `0` means already at the start it indicated to stop
   * any negative number means that it did not yet indicate to stop.
 """
-mutable struct DefaultStoppingCriterionState
+mutable struct DefaultStoppingCriterionState <: StoppingCriterionState
     at_iteration::Int
     DefaultStoppingCriterionState() = new(-1)
 end
