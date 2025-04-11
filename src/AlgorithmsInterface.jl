@@ -20,9 +20,8 @@ include("stopping_criterion.jl")
 export Algorithm, Problem, State
 export StoppingCriterion, StoppingCriterionState
 export StopAfter, StopAfterIteration, StopWhenAll, StopWhenAny
-export is_finished
-export initialize_state, initialize_state!, is_finished
-export get_iteration
+export is_finished, is_finished!
+export initialize_state, initialize_state!
 export step!, solve, solve!
 
 end # module AlgorithmsInterface
