@@ -1,6 +1,17 @@
-# IterativeAlgorithmsInterface.jl
+# 🧮 AlgorithmsInterface.jl
 
-`IterativeAlgorithmsInterface.jl` is a Julia package to provide a common interface to run iterative tasks. **Algorithm** here refers to an iterative sequence of commands, that are run until a certain stopping criterion is met.
+`AlgorithmsInterface.jl` is a Julia package to provide a common interface to run iterative tasks.
+**Algorithm** here refers to an iterative sequence of commands, that are run until a certain stopping criterion is met.
+
+[![docs][docs-dev-img]][docs-dev-url] ![CI][ci-url] [![codecov][codecov-img]][codecov-url]
+
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://JuliaManifolds.github.io/AlgorithmsInterface.jl/dev/
+
+[codecov-img]: https://codecov.io/gh/JuliaManifolds/AlgorithmsInterface.jl/graph/badge.svg?token=1OBDY03SUP
+[codecov-url]: https://codecov.io/gh/JuliaManifolds/AlgorithmsInterface.jl
+
+[ci-url]: https://github.com/JuliaManifolds/AlgorithmsInterface.jl/workflows/ci/badge.svg
 
 # Statement of need
 
@@ -13,20 +24,10 @@ Finally, a common interface also allows to easily combine existing algorithms, h
 
 # Main features
 
-We consider solving _Tasks_, which consist of
+See the [intial discussion](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/1)
+as well as the [overview on existing things](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/2)
 
-* An `AbstractProblem` to solve, which contains all information that is static to the problem and usually does not change during the iterations, this might for example be a cost function and its gradient in an optimisation problem.
-* An `AbstractAlgorithmState` that both specifies which algorithm to use to _solve_ the problem, but also stores all parameters that an algorithm needs as well as everything the algorithm needs to store between two iterations.
-
-This generic data structures are accompanied by the methods
-
-* `step!(problem::Problem, state::AlgorithmState, k)` to perform the `k`th iteration of the algorithm.
-* `solve!(problem::Problem, state::AlgorithmState)` to solve a problem with a given algorithm, which is identified by the `AlgorithmState`.
-* `stop(problem::Problem, state::AlgorithmState)` to check whether the algorithm should stop.
-
-where the first is the main one to implement for a new algorithm.
-
-# Further ideas
+## Further ideas
 
 * generic stopping criteria `<:AbstractStoppingCriterion`
   * `StopAfterIteration(i)` for example
@@ -35,7 +36,7 @@ where the first is the main one to implement for a new algorithm.
 * by default `stop()` from above would check such a stopping criterion
 * generic debug and record functionality – together with hooks even
 
-# possible extensions
+## Possible extensions
 
 * to `LineSearches.jl`
 *
