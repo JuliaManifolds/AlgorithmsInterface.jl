@@ -152,12 +152,12 @@ function indicates_convergence(stop_when_all::StopWhenAll)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", stop_when_all::StopWhenAll)
-    s = ""
+    print(io, "StopWhenAll with the Stopping Criteria")
     for stopping_criterion in stop_when_all.criteria
-        #add every SC to the list but increase indent
-        s = s * "\n * " * replace("$(stopping_criterion)", "\n" => "\n    ")
+        println(io)
+        replace(io, string(stopping_criterion), "\n" => "\n    ") #increase indent
     end
-    return print(io, "StopWhenAll with the Stopping Criteria\n$(s)")
+    return nothing
 end
 
 """
@@ -201,13 +201,16 @@ end
 function indicates_convergence(stop_when_any::StopWhenAny)
     return all(indicates_convergence, stop_when_any.criteria)
 end
+
 function Base.show(io::IO, ::MIME"text/plain", stop_when_any::StopWhenAny)
-    s = ""
+    print(io, "StopWhenAny with the Stopping Criteria")
     for stopping_criterion in stop_when_any.criteria
-        s = s * "\n * " * replace("$(stopping_criterion)", "\n" => "\n    ") #increase indent
+        println(io)
+        replace(io, string(stopping_criterion), "\n" => "\n    ") #increase indent
     end
-    return print(io, "StopWhenAny with the Stopping Criteria\n$(s)")
+    return nothing
 end
+
 """
     |(s1,s2)
     s1 | s2
@@ -252,16 +255,10 @@ function get_reason(
     stop_when::Union{StopWhenAll,StopWhenAny},
     stopping_criterion_states::GroupStoppingCriterionState,
 )
-    if stopping_criterion_states.at_iteration >= 0
-        return string(
-            (
-                get_reason(stopping_criterion, stopping_criterion_state) for
-                (stopping_criterion, stopping_criterion_state) in
-                zip(stop_when.criteria, stopping_criterion_states.criteria_states)
-            )...,
-        )
-    end
-    return nothing
+    stopping_criterion_states.at_iteration < 0 && return nothing
+    criteria = stop_when.criteriaq
+    stopping_criterion_states = stopping_criterion_states.criteria_states
+    return join(Iterators.map(get_reason, criteria, stopping_criterion_states))
 end
 
 function initialize_state(
@@ -270,10 +267,10 @@ function initialize_state(
     stop_when::Union{StopWhenAll,StopWhenAny};
     kwargs...,
 )
-    return GroupStoppingCriterionState([
+    return GroupStoppingCriterionState((
         initialize_state(problem, algorithm, stopping_criterion; kwargs...) for
         stopping_criterion in stop_when.criteria
-    ])
+    )...)
 end
 function initialize_state!(
     stopping_criterion_states::GroupStoppingCriterionState,
