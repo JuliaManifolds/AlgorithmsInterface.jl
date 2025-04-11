@@ -152,9 +152,9 @@ function indicates_convergence(stop_when_all::StopWhenAll)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", stop_when_all::StopWhenAll)
-    print(io, "StopWhenAll with the Stopping Criteria")
+    print(io, "StopWhenAll with the Stopping Criteria:")
     for stopping_criterion in stop_when_all.criteria
-        println(io)
+        print(io, "\n     ")
         replace(io, string(stopping_criterion), "\n" => "\n    ") #increase indent
     end
     return nothing
@@ -205,7 +205,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", stop_when_any::StopWhenAny)
     print(io, "StopWhenAny with the Stopping Criteria")
     for stopping_criterion in stop_when_any.criteria
-        println(io)
+        print(io, "\n     ")
         replace(io, string(stopping_criterion), "\n" => "\n    ") #increase indent
     end
     return nothing
