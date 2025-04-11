@@ -267,10 +267,12 @@ function initialize_state(
     stop_when::Union{StopWhenAll,StopWhenAny};
     kwargs...,
 )
-    return GroupStoppingCriterionState((
-        initialize_state(problem, algorithm, stopping_criterion; kwargs...) for
-        stopping_criterion in stop_when.criteria
-    )...)
+    return GroupStoppingCriterionState(
+        (
+            initialize_state(problem, algorithm, stopping_criterion; kwargs...) for
+            stopping_criterion in stop_when.criteria
+        )...,
+    )
 end
 function initialize_state!(
     stopping_criterion_states::GroupStoppingCriterionState,
