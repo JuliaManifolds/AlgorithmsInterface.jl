@@ -7,18 +7,12 @@ A concrete algorithm contains all static parameters that characterise the algori
 Together with a [`Problem`](@ref) an `Algorithm` subtype should be able to initialize
 or reset a [`State`](@ref).
 
-## Usual fields
+## Properties
 
-Usually this should include the following. If you use this naming scheme, default functions
-e.g. as accessors
+Algorithms can contain any number of properties that are needed to define the algorithm,
+but should additionally contain the following properties to interact with the stopping criteria.
 
-* `stopping_criterion` a [`StoppingCriterion`](@ref)
-
-## Methods
-
-The following methods should be implemented for an [`Algorithm`](@ref)
-
-* [`get_stopping_criterion`](@ref) to return the algorithms stopping criterion.
+* `stopping_criterion::StoppingCriterion`
 
 ## Example
 
@@ -26,12 +20,3 @@ For a [gradient descent](https://en.wikipedia.org/wiki/Gradient_descent) algorit
 the algorithm would specify which step size selection to use.
 """
 abstract type Algorithm end
-
-"""
-    get_stopping_criterion(algorithm::Algorithm)
-
-Return the [`StoppingCriterion`](@ref) of the [`Algorithm`](@ref).
-
-The default assumes that the criterion is stored in `algorithm.stopping_criterion`.
-"""
-get_stopping_criterion(algorithm::Algorithm) = algorithm.stopping_criterion

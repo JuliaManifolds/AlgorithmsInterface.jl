@@ -5,6 +5,7 @@ An abstract type to represent a problem to be solved with all its static propert
 not change during an algorithm run.
 
 ## Example
+
 For a [gradient descent](https://en.wikipedia.org/wiki/Gradient_descent) algorithm the problem consists of
 
 * a `cost` function ``f: C → ℝ``

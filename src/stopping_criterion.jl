@@ -90,8 +90,8 @@ function is_finished(problem::Problem, algorithm::Algorithm, state::State)
         problem,
         algorithm,
         state,
-        get_stopping_criterion(algorithm),
-        get_stopping_criterion_state(state),
+        algorithm.stopping_criterion,
+        state.stopping_criterion_state,
     )
 end
 
@@ -104,8 +104,8 @@ function is_finished!(problem::Problem, algorithm::Algorithm, state::State)
         problem,
         algorithm,
         state,
-        get_stopping_criterion(algorithm),
-        get_stopping_criterion_state(state),
+        algorithm.stopping_criterion,
+        state.stopping_criterion_state,
     )
 end
 
@@ -303,7 +303,7 @@ function is_finished(
     stop_when_all::StopWhenAll,
     stopping_criterion_states::GroupStoppingCriterionState,
 )
-    k = get_iteration(state)
+    k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
     if all(
         st -> is_finished(problem, algorithm, state, st[1], st[2]),
@@ -320,7 +320,7 @@ function is_finished!(
     stop_when_all::StopWhenAll,
     stopping_criterion_states::GroupStoppingCriterionState,
 )
-    k = get_iteration(state)
+    k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
     if all(
         st -> is_finished!(problem, algorithm, state, st[1], st[2]),
@@ -339,7 +339,7 @@ function is_finished(
     stop_when_any::StopWhenAny,
     stopping_criterion_states::GroupStoppingCriterionState,
 )
-    k = get_iteration(state)
+    k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
     if any(
         st -> is_finished(problem, algorithm, state, st[1], st[2]),
@@ -356,7 +356,7 @@ function is_finished!(
     stop_when_any::StopWhenAny,
     stopping_criterion_states::GroupStoppingCriterionState,
 )
-    k = get_iteration(state)
+    k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
     if all(
         st -> is_finished!(problem, algorithm, state, st[1], st[2]),
@@ -460,7 +460,7 @@ function is_finished(
     stop_after_iteration::StopAfterIteration,
     stopping_criterion_state::DefaultStoppingCriterionState,
 )
-    return get_iteration(state) >= stop_after_iteration.max_iterations
+    return state.iteration >= stop_after_iteration.max_iterations
 end
 function is_finished!(
     ::Problem,
@@ -469,7 +469,7 @@ function is_finished!(
     stop_after_iteration::StopAfterIteration,
     stopping_criterion_state::DefaultStoppingCriterionState,
 )
-    k = get_iteration(state)
+    k = state.iteration
     (k == 0) && (stopping_criterion_state.at_iteration = -1)
     if k >= stop_after_iteration.max_iterations
         stopping_criterion_state.at_iteration = k
@@ -570,7 +570,7 @@ function is_finished(
     stop_after::StopAfter,
     stop_after_state::StopAfterTimePeriodState,
 )
-    k = get_iteration(state)
+    k = state.iteration
     # Just check whether the (last recorded) time is beyond the threshold
     return (k > 0 && (stop_after_state.time > Nanosecond(stop_after.threshold)))
 end
@@ -581,7 +581,7 @@ function is_finished!(
     stop_after::StopAfter,
     stop_after_state::StopAfterTimePeriodState,
 )
-    k = get_iteration(state)
+    k = state.iteration
     if value(stop_after_state.start) == 0 || k <= 0 # (re)start timer
         stop_after_state.at_iteration = -1
         stop_after_state.start = Nanosecond(time_ns())
