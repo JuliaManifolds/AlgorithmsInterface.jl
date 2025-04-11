@@ -10,6 +10,7 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Aqua = "0.8"
 Dates = "1.10"
 SafeTestsets = "0.1"
+Test = "1.10"
 julia = "1.10"
 
 [extras]
