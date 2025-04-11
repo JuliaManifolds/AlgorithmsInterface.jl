@@ -355,9 +355,9 @@ function is_finished!(
 )
     k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if all(
+    if any(
         st -> is_finished!(problem, algorithm, state, st[1], st[2]),
-        zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
+        zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
     )
         stopping_criterion_states.at_iteration = k
         return true
