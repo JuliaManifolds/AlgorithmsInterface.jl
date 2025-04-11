@@ -1,5 +1,9 @@
 using SafeTestsets
 
+# these have to be included here to make show tests behave
+using AlgorithmsInterface
+using Dates
+
 @safetestset "Newton" begin
     include("newton.jl")
 end
