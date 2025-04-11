@@ -1,7 +1,10 @@
-using AlgorithmsInterface, Test
+using SafeTestsets
 
-let
-    @testset "Newton" begin
-        include("newton.jl")
-    end
+@safetestset "Newton" begin
+    include("newton.jl")
+end
+
+@safetestset "Aqua" begin
+    using AlgorithmsInterface, Aqua
+    Aqua.test_all(AlgorithmsInterface)
 end
