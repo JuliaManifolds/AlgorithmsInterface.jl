@@ -9,7 +9,7 @@ using Dates
 end
 
 @safetestset "Stopping Criteria" begin
-    include("stopping_criterion.jl")
+    include("test_stopping_criterion.jl")
 end
 
 @safetestset "Aqua" begin

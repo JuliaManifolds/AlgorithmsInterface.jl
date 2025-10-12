@@ -1,15 +1,9 @@
+using Pkg
+Pkg.activate(@__DIR__)
 using Test
 using AlgorithmsInterface
 using Dates
-
-struct DummyAlgorithm <: Algorithm
-    stopping_criterion::StoppingCriterion
-end
-struct DummyProblem <: Problem end
-mutable struct DummyState{S <: StoppingCriterionState} <: State
-    stopping_criterion_state::S
-    iteration::Int
-end
+using AlgorithmsInterfaceTestSuite
 
 problem = DummyProblem()
 

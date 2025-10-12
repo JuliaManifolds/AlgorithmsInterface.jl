@@ -1,0 +1,14 @@
+name = "AlgorithmsInterfaceTestSuite"
+uuid = "876e16e5-0a55-4659-a4bc-e03625482f1c"
+version = "0.1.0"
+authors = ["Ronny Bergmann <git@ronnybergmann.net>"]
+
+[deps]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+AlgorithmsInterface = "d1e3940c-cd12-4505-8585-b0a4b322527d"
+
+[compat]
+Test = "1.11.0"
+
+[sources]
+AlgorithmsInterface = {path = "../../"}
