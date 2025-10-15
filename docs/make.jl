@@ -3,15 +3,17 @@
 #
 
 if "--help" ∈ ARGS
-    println("""
-    docs/make.jl
+    println(
+        """
+        docs/make.jl
 
-    Render the `AlgorithmsInterface.jl` documentation with optional arguments
+        Render the `AlgorithmsInterface.jl` documentation with optional arguments
 
-    Arguments
-    * `--help`              print this help and exit without rendering the documentation
-    * `--prettyurls`        toggle the pretty urls part to true, which is always set on CI
-    """)
+        Arguments
+        * `--help`              print this help and exit without rendering the documentation
+        * `--prettyurls`        toggle the pretty urls part to true, which is always set on CI
+        """
+    )
     exit(0)
 end
 

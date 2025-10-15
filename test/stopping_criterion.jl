@@ -6,7 +6,7 @@ struct DummyAlgorithm <: Algorithm
     stopping_criterion::StoppingCriterion
 end
 struct DummyProblem <: Problem end
-mutable struct DummyState{S<:StoppingCriterionState} <: State
+mutable struct DummyState{S <: StoppingCriterionState} <: State
     stopping_criterion_state::S
     iteration::Int
 end
@@ -43,7 +43,7 @@ end
     s1 = StopAfterIteration(2) & StopAfter(Second(1))
     @test s1 isa StoppingCriterion
     @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1) ==
-          "StopWhenAll with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
+        "StopWhenAll with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
 
     algorithm = DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
@@ -59,7 +59,7 @@ end
     s1 = StopAfterIteration(2) | StopAfter(Second(1))
     @test s1 isa StoppingCriterion
     @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1) ==
-          "StopWhenAny with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
+        "StopWhenAny with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
 
     algorithm = DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
