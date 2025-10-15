@@ -16,6 +16,7 @@ include("interface/state.jl")
 include("interface/interface.jl")
 
 include("stopping_criterion.jl")
+include("logging.jl")
 
 export Algorithm, Problem, State
 export StoppingCriterion, StoppingCriterionState
