@@ -44,10 +44,14 @@ All keyword arguments are passed to the [`initialize_state!`](@ref)`(problem, al
 """
 function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
     initialize_state!(problem, algorithm, state; kwargs...)
+    log_start!(problem, algorithm, state)
     while !is_finished!(problem, algorithm, state)
+        log_before_iteration!(problem, algorithm, state)
         increment!(state)
         step!(problem, algorithm, state)
+        log_after_iteration!(problem, algorithm, state)
     end
+    log_stop!(problem, algorithm, state)
     return state
 end
 
