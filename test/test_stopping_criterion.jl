@@ -6,6 +6,7 @@ if VERSION < v"1.11"
     Pkg.develop(path = (@__DIR__) * "/../")
     Pkg.develop(path = (@__DIR__) * "/AlgorithmsInterfaceTestSuite.jl")
 end
+Pkg.resolve()
 using Test
 using AlgorithmsInterface
 using Dates
