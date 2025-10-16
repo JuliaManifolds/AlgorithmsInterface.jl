@@ -8,7 +8,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 AlgorithmsInterface = "d1e3940c-cd12-4505-8585-b0a4b322527d"
 
 [compat]
-Test = "1.11.0"
+Test = "1.10.0"
 
 [sources]
 AlgorithmsInterface = {path = "../../"}

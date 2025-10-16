@@ -1,5 +1,11 @@
 using Pkg
 Pkg.activate(@__DIR__)
+if VERSION < v"1.11"
+    # Once the main package is registered: just load test suite
+    # Pkg.add(path = (@__DIR__) * "/../", subdir = "test/AlgorithmsInterfaceTestSuite.jl")
+    Pkg.develop(path = (@__DIR__) * "/../")
+    Pkg.develop(path = (@__DIR__) * "/AlgorithmsInterfaceTestSuite.jl")
+end
 using Test
 using AlgorithmsInterface
 using Dates
