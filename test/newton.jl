@@ -30,10 +30,10 @@ function initialize_state(problem::RootFindingProblem, algorithm::NewtonMethod)
     return NewtonState(0, 1.0, scs) # hardcode initial guess to 1.0
 end
 function initialize_state!(
-    problem::RootFindingProblem,
-    algorithm::NewtonMethod,
-    state::NewtonState,
-)
+        problem::RootFindingProblem,
+        algorithm::NewtonMethod,
+        state::NewtonState,
+    )
     state.iteration = 0
     state.iterate = 1.0
     initialize_state!(
