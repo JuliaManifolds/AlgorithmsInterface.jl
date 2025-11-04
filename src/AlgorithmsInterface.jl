@@ -9,6 +9,8 @@
 module AlgorithmsInterface
 
 using Dates: Millisecond, Nanosecond, Period, canonicalize, value
+using Printf
+using ScopedValues
 
 include("interface/algorithm.jl")
 include("interface/problem.jl")

@@ -1,127 +1,136 @@
-"""
-    log!(problem::Problem, algorithm::Algorithm, state::State; context::Symbol) -> nothing
-
-Generate a log record for the given `(problem, algorithm, state)`, using the logging action associated to `context`.
-By default, the following events trigger a logging action with the given `context`:
-
-| context   | event                                 |
-| --------- | ------------------------------------- |
-| :Start    | The solver has been initialized.      |
-| :PreStep  | The solver is about to take a step.   |
-| :PostStep | The solver has taken a step.          |
-| :Stop     | The solver has finished.              |
-
-Specific algorithms can associate other events with other contexts.
-
-See also [`register_action!`](@ref) to associate custom actions with these contexts.
-"""
-function log!(problem::Problem, algorithm::Algorithm, state::State; context)::Nothing
-    action = @something(logging_action(problem, algorithm, state, context), return nothing)
-    # TODO: filter out `nothing` logdata
-    @logmsg(
-        loglevel(action), logdata!(action, problem, algorithm, state),
-        _id = logid(action), _group = loggroup(algorithm)
-    )
-    return nothing
-end
-
-"""
-    logging_action(problem::Problem, algorithm::Algorithm, state::State, context::Symbol)
-        -> Union{Nothing,LoggingAction}
-
-Obtain the registered logging action associated to an event identified by `context`.
-The default implementation assumes a dictionary-like object `state.logging_action`, which holds
-the different registered actions.
-"""
-function logging_action(::Problem, ::Algorithm, state::State, context::Symbol)
-    return get(state.logging_actions, context, nothing)
-end
-
-@doc """
-    loggroup(algorithm::Algorithm) -> Symbol
-    loggroup(::Type{<:Algorithm}) -> Symbol
-
-Generate a group id to attach to all log records for a given algorithm.
-""" loggroup
-
-loggroup(algorithm::Algorithm) = loggroup(typeof(algorithm))
-loggroup(Alg::Type{<:Algorithm}) = Base.nameof(Alg)
-
-# Sources
-# -------
+# LoggingAction interface
+# -----------------------
 """
     LoggingAction
 
 Abstract supertype for defining an action that generates a log record.
 
 ## Methods
-Any concrete subtype should at least implement the following method:
-- [`logdata!(action, problem, algorithm, state)`](@ref logdata!) : generate the data for the log record.
+Any concrete subtype should at least implement the following method to handle the logging event:
 
-Addionally, the following methods can be specialized to alter the default behavior:
-- [`loglevel(action) = Logging.Info`](@ref loglevel) : specify the logging level of the generated record.
-- [`logid(action) = objectid(action)`](@ref logid) : specify a unique identifier to associate with the record.
+- [`handle_message!(action, problem, algorithm, state, args...; kwargs...)`](@ref handle_message!)
 """
 abstract type LoggingAction end
 
-logdata!(::LoggingAction, ::Problem, ::Algorithm, ::State) = missing
-loglevel(::LoggingAction) = Logging.Info
-logid(action::LoggingAction) = objectid(action)
+@doc """
+    handle_message!(action::LoggingAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...)
 
-struct LogCallback{F} <: LoggingAction
-    f::F
-end
+Entry-point for defining an implementation of how to handle a logging event for a given [`LoggingAction`](@ref).
+""" handle_message!(::LoggingAction, ::Algorithm, ::Problem, ::State; kwargs...)
 
-logdata!(action::LogCallback, problem, algorithm, state) =
-    action.f(problem, algorithm, state)
+# Concrete LoggingActions
+# -----------------------
+"""
+    LogGroup(actions::Vector{<:LoggingAction})
 
+Concrete [`LoggingAction`](@ref) that can be used to sequentially perform each of the `actions`.
+"""
 struct LogGroup{A <: LoggingAction} <: LoggingAction
     actions::Vector{A}
 end
 
-loglevel(alg::LogGroup) = maximum(loglevel, alg.actions)
-
-logdata!(action::LogGroup, problem, algorithm, state) = map(action.actions) do action
-    return logdata!(action, problem, algorithm, state)
+function handle_message!(
+        action::LogGroup, problem::Problem, algorithm::Algorithm, state::State; kwargs...
+    )
+    for child in action.actions
+        handle_message!(child, algorithm, problem, state; kwargs...)
+    end
+    return nothing
 end
 
-struct LogLvl{F, A <: LoggingAction} <: LoggingAction
-    action::A
-    lvl::LogLevel
+"""
+    CallbackAction(callback)
+
+Concrete [`LoggingAction`](@ref) that handles a logging event through an arbitrary callback function.
+The callback function must have the following signature:
+```julia
+callback(algorithm, problem, state; kwargs...) = ...
+```
+Here `args...` and `kwargs...` are optional and can be filled out with context-specific information.
+"""
+struct CallbackAction{F} <: LoggingAction
+    callback::F
 end
 
-loglevel(alg::LogLvl) = alg.lvl
+function handle_message!(
+        action::CallbackAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...
+    )
+    action.callback(algorithm, problem, state; kwargs...)
+    return nothing
+end
 
-struct LogIf{F, A <: LoggingAction} <: LoggingAction
+struct IfAction{F, A <: LoggingAction} <: LoggingAction
     predicate::F
     action::A
 end
 
-# first cheap check through the level
-loglevel(alg::LogIf) = loglevel(alg.action)
-
-# second check through the predicate
-logdata!(action::LogIf, problem::Problem, algorithm::Algorithm, state::State) =
-    action.predicate(problem, algorithm, state) ? logdata!(action.action, problem, algorithm, state) : nothing
-
-# Sinks
-# -----
-struct StringFormat{F <: PrintF.Format}
-    format::F
-end
-function (formatter::StringFormat)(io::IO, lvl, msg, _module, group, id, file = nothing, line = nothing; indent::Integer = 0, kwargs...)
-    iob = IOBuffer()
-    return ioc = IOContext(iob, io)
-
+function handle_message!(
+        action::IfAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...
+    )
+    return action.predicate(problem, algorithm, state; kwargs...) ?
+        handle_message(action.action, problem, algorithm, state; kwargs...) :
+        nothing
 end
 
-struct FormatterGroup{K, V}
-    rules::Dict{K, V}
+# Algorithm Logger
+# ----------------
+"""
+    AlgorithmLogger(context => action, ...)
+
+Logging transformer that handles the logic of dispatching logging events to logging actions.
+By default, the following events trigger a logging action with the given `context`:
+
+|  context  |              event                  |
+| --------- | ----------------------------------- |
+| :Start    | The solver will start.              |
+| :Init     | The solver has been initialized.    |
+| :PreStep  | The solver is about to take a step. |
+| :PostStep | The solver has taken a step.        |
+| :Stop     | The solver has finished.            |
+
+Specific algorithms can associate other events with other contexts.
+
+See also the scoped value [`AlgorithmsInterface.algorithm_logger`](@ref).
+"""
+struct AlgorithmLogger
+    actions::Dict{Symbol, LogAction}
+end
+AlgorithmLogger(args...) = AlgorithmLogger(Dict{Symbol, LogAction}(args...))
+
+"""
+    const LOGGING_ENABLED = Ref(true)
+
+Global toggle for enabling and disabling all logging features.
+"""
+const LOGGING_ENABLED = Ref(true)
+
+"""
+    const algorithm_logger = ScopedValue(AlgorithmLogger())
+
+Scoped value for handling the logging events of arbitrary algorithms.
+"""
+const ALGORITHM_LOGGER = ScopedValue(AlgorithmLogger())
+
+# @inline here to enable the cheap global check
+@inline function log!(problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...)
+    if LOGGING_ENABLED[]
+        logger::AlgorithmLogger = ALGORITHM_LOGGER[]
+        handle_message(logger, problem, algorithm, state, context; kwargs...)
+    end
+    return nothing
 end
 
-function (formatter::AlgorithmFormatter)(io::IO, log)
-    rule = get(formatter.rules, log.id, nothing)
-    isnothing(rule) ? println(io, log) :
-        rule(io, log.level, log.message, log._module, log.group, log.id, log.file, log.line; log.kwargs...)
+# @noinline to keep the algorithm function bodies small
+@noinline function handle_message(
+        alglogger::AlgorithmLogger, problem::Problem, algorithm::Algorithm, state::State, context::Symbol;
+        kwargs...
+    )
+    action::LoggingAction = @something(get(alglogger.actions, context, nothing), return nothing)
+    try
+        handle_message!(action, problem, algorithm, state, args...; kwargs...)
+    catch err
+        bt = catch_backtrace()
+        @error "Error during the handling of a logging action" action exception = (err, bt)
+    end
     return nothing
 end
