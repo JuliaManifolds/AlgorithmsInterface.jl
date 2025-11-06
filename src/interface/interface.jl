@@ -43,16 +43,31 @@ The state is modified in-place.
 All keyword arguments are passed to the [`initialize_state!`](@ref)`(problem, algorithm, state)` function.
 """
 function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
+    # obtain logger once to minimize overhead from accessing ScopedValue
+    # additionally handle logging initialization to enable stateful LoggingAction
     logger = algorithm_logger()
+    # initialize_logger(logger, problem, algorithm, state)
+
+    # initialize the state and emit message
     initialize_state!(problem, algorithm, state; kwargs...)
-    isnothing(logger) || handle_message(logger, problem, algorithm, state, :Start)
+    emit_message(logger, problem, algorithm, state, :Start)
+
+    # main body of the algorithm
     while !is_finished!(problem, algorithm, state)
-        isnothing(logger) || handle_message(logger, problem, algorithm, state, :PreStep)
+        # logging event between convergence check and algorithm step
+        emit_message(logger, problem, algorithm, state, :PreStep)
+
+        # algorithm step
         increment!(state)
         step!(problem, algorithm, state)
-        isnothing(logger) || handle_message(logger, problem, algorithm, state, :PostStep)
+
+        # logging event between algorithm step and convergence check
+        emit_message(logger, problem, algorithm, state, :PostStep)
     end
-    isnothing(logger) || handle_message(logger, problem, algorithm, state, :Stop)
+
+    # emit message about finished state
+    emit_message(logger, problem, algorithm, state, :Stop)
+
     return state
 end
 

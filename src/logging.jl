@@ -46,7 +46,7 @@ The callback function must have the following signature:
 ```julia
 callback(algorithm, problem, state; kwargs...) = ...
 ```
-Here `args...` and `kwargs...` are optional and can be filled out with context-specific information.
+Here `kwargs...` are optional and can be filled out with context-specific information.
 """
 struct CallbackAction{F} <: LoggingAction
     callback::F
@@ -59,6 +59,16 @@ function handle_message!(
     return nothing
 end
 
+"""
+    IfAction(predicate, action)
+
+Concrete [`LoggingAction`](@ref) that wraps another action and hides it behind a clause, only
+emitting logging events whenever the `predicate` evaluates to true. The `predicate` must have
+the signature:
+```julia
+predicate(algorithm, problem, state; kwargs...)::Bool
+```
+"""
 struct IfAction{F, A <: LoggingAction} <: LoggingAction
     predicate::F
     action::A
@@ -97,18 +107,34 @@ struct AlgorithmLogger
 end
 AlgorithmLogger(args...) = AlgorithmLogger(Dict{Symbol, LoggingAction}(args...))
 
-"""
-    const LOGGING_ENABLED = Ref(true)
 
-Global toggle for enabling and disabling all logging features.
-"""
+@doc """
+    get_global_logging_state()
+    set_global_logging_state!(state::Bool) -> previous_state
+
+Retrieve or set the value to globally enable or disable the handling of logging events.
+""" get_global_logging_state, set_global_logging_state!
+
 const LOGGING_ENABLED = Ref(true)
 
-"""
-    const algorithm_logger = ScopedValue(AlgorithmLogger())
+get_global_logging_state() = LOGGING_ENABLED[]
+function set_global_logging_state(state::Bool)
+    previous = LOGGING_ENABLED[]
+    LOGGING_ENABLED[] = state
+    return previous
+end
 
-Scoped value for handling the logging events of arbitrary algorithms.
-"""
+
+@doc """
+    algorithm_logger()::Union{AlgorithmLogger, Nothing}
+
+Retrieve the current logger that is responsible for handling logging events.
+The current logger is determined by a `ScopedValue`.
+Whenever `nothing` is returned, no logging should happen.
+
+See also [`set_global_logging_state!`](@ref) for globally toggling whether logging should happen.
+""" algorithm_logger
+
 const ALGORITHM_LOGGER = ScopedValue(AlgorithmLogger())
 
 function algorithm_logger()
@@ -118,21 +144,22 @@ function algorithm_logger()
     return logger
 end
 
-# @inline here to enable the cheap global check
-@inline function log!(problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...)
-    if LOGGING_ENABLED[]
-        logger::AlgorithmLogger = ALGORITHM_LOGGER[]
-        handle_message(logger, problem, algorithm, state, context; kwargs...)
-    end
-    return nothing
-end
+"""
+    emit_message(problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...) -> nothing
+    emit_message(algorithm_logger, problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...) -> nothing
 
-# @noinline to keep the algorithm function bodies small
-@noinline function handle_message(
+Use the current or the provided algorithm logger to handle the logging event of the given `context`.
+The [`AlgorithmLogger`](@ref) is responsible for dispatching the correct events to the correct [`LoggingAction`](@ref)s.
+"""
+emit_message(problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...) =
+    emit_message(algorithm_logger(), problem, algorithm, state, context; kwargs...)
+emit_message(::Nothing, problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...) =
+    nothing
+function emit_message(
         alglogger::AlgorithmLogger, problem::Problem, algorithm::Algorithm, state::State, context::Symbol;
         kwargs...
     )
-    isempty(alglogger.actions) && return nothing
+    @noinline; @nospecialize
     action::LoggingAction = @something(get(alglogger.actions, context, nothing), return nothing)
     try
         handle_message!(action, problem, algorithm, state, args...; kwargs...)
