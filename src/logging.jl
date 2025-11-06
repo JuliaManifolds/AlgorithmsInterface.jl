@@ -125,6 +125,7 @@ end
         alglogger::AlgorithmLogger, problem::Problem, algorithm::Algorithm, state::State, context::Symbol;
         kwargs...
     )
+    isempty(alglogger.actions) && return nothing
     action::LoggingAction = @something(get(alglogger.actions, context, nothing), return nothing)
     try
         handle_message!(action, problem, algorithm, state, args...; kwargs...)

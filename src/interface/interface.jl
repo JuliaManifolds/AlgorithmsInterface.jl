@@ -43,15 +43,16 @@ The state is modified in-place.
 All keyword arguments are passed to the [`initialize_state!`](@ref)`(problem, algorithm, state)` function.
 """
 function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
+    logger = ALGORITHM_LOGGER[]
     initialize_state!(problem, algorithm, state; kwargs...)
-    log!(problem, algorithm, state, :Start)
+    LOGGING_ENABLED[] && handle_message(logger, problem, algorithm, state, :Start)
     while !is_finished!(problem, algorithm, state)
-        log!(problem, algorithm, state, :PreStep)
+        LOGGING_ENABLED[] && handle_message(logger, problem, algorithm, state, :PreStep)
         increment!(state)
         step!(problem, algorithm, state)
-        log!(problem, algorithm, state, :PostStep)
+        LOGGING_ENABLED[] && handle_message(logger, problem, algorithm, state, :PostStep)
     end
-    log!(problem, algorithm, state, :Stop)
+    LOGGING_ENABLED[] && handle_message(logger, problem, algorithm, state, :Stop)
     return state
 end
 
