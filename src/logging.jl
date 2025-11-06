@@ -111,6 +111,13 @@ Scoped value for handling the logging events of arbitrary algorithms.
 """
 const ALGORITHM_LOGGER = ScopedValue(AlgorithmLogger())
 
+function algorithm_logger()
+    LOGGING_ENABLED[] || return nothing
+    logger = ALGORITHM_LOGGER[]
+    isempty(logger.actions) && return nothing
+    return logger
+end
+
 # @inline here to enable the cheap global check
 @inline function log!(problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...)
     if LOGGING_ENABLED[]
