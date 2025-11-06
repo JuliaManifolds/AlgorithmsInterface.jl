@@ -93,9 +93,9 @@ Specific algorithms can associate other events with other contexts.
 See also the scoped value [`AlgorithmsInterface.algorithm_logger`](@ref).
 """
 struct AlgorithmLogger
-    actions::Dict{Symbol, LogAction}
+    actions::Dict{Symbol, LoggingAction}
 end
-AlgorithmLogger(args...) = AlgorithmLogger(Dict{Symbol, LogAction}(args...))
+AlgorithmLogger(args...) = AlgorithmLogger(Dict{Symbol, LoggingAction}(args...))
 
 """
     const LOGGING_ENABLED = Ref(true)
