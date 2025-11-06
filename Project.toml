@@ -11,7 +11,7 @@ ScopedValues = "7e506255-f358-4e82-b7e4-beb19740aa63"
 [compat]
 Aqua = "0.8"
 Dates = "1.10"
-Printf = "1.11.0"
+Printf = "1.10"
 SafeTestsets = "0.1"
 ScopedValues = "1.5.0"
 Test = "1.10"
