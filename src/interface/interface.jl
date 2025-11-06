@@ -1,6 +1,6 @@
 _doc_init_state = """
     state = initialize_state(problem::Problem, algorithm::Algorithm; kwargs...)
-    state = initialize_state!(state::State, problem::Problem, algorithm::Algorithm; kwargs...)
+    state = initialize_state!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
 
 Initialize a [`State`](@ref) based on a [`Problem`](@ref) and an [`Algorithm`](@ref).
 The `kwargs...` should allow to initialize for example the initial point.

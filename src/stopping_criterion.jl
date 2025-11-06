@@ -237,7 +237,7 @@ Base.:|(s1::StopWhenAny, s2::StopWhenAny) = StopWhenAny(s1.criteria..., s2.crite
 
 A [`StoppingCriterionState`](@ref) that groups multiple [`StoppingCriterionState`](@ref)s
 internally as a tuple.
-This is for example used in combination with [`StopWhenAny`](@ref) and [`StopWhenAny`](@ref)
+This is for example used in combination with [`StopWhenAny`](@ref) and [`StopWhenAll`](@ref)
 
 # Constructor
     GroupStoppingCriterionState(c::Vector{N,StoppingCriterionState} where N)
