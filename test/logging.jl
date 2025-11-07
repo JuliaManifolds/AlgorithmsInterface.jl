@@ -123,3 +123,42 @@ end
         end
     end
 end
+
+@testset "Global logging toggle disables all logging" begin
+    problem = LogDummyProblem()
+    algorithm = LogDummyAlgorithm(StopAfterIteration(3))
+
+    # Action that logs the current iteration number
+    iter_logger = CallbackAction() do problem, algorithm, state
+        @info "Iter $(state.iteration)"
+    end
+
+    # Save the current global logging state
+    previous_state = AlgorithmsInterface.get_global_logging_state()
+    @test previous_state == true  # logging should be enabled by default
+
+    # Disable logging globally
+    AlgorithmsInterface.set_global_logging_state!(false)
+    @test AlgorithmsInterface.get_global_logging_state() == false
+
+    # Even with a logger configured, no logs should be emitted
+    @test_logs begin
+        with_algorithmlogger(:PostStep => iter_logger) do
+            solve(problem, algorithm)
+        end
+    end
+
+    # Re-enable logging
+    AlgorithmsInterface.set_global_logging_state!(true)
+    @test AlgorithmsInterface.get_global_logging_state() == true
+
+    # Now logging should work again
+    @test_logs (:info, "Iter 1") (:info, "Iter 2") (:info, "Iter 3") begin
+        with_algorithmlogger(:PostStep => iter_logger) do
+            solve(problem, algorithm)
+        end
+    end
+
+    # Restore the original state (in case it was different)
+    AlgorithmsInterface.set_global_logging_state!(previous_state)
+end
