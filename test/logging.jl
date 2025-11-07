@@ -55,3 +55,26 @@ end
         end
     end
 end
+
+@testset "Logging errors are caught and don't crash" begin
+    problem = LogDummyProblem()
+    algorithm = LogDummyAlgorithm(StopAfterIteration(3))
+
+    # Action that throws on the second iteration
+    flaky_logger = CallbackAction() do problem, algorithm, state
+        if state.iteration == 2
+            error("Boom")
+        else
+            @info "Iter $(state.iteration)"
+        end
+    end
+
+    # We expect:
+    #  - an error log emitted by the logging infrastructure on iter 2
+    #  - info logs for iterations 1 and 3
+    @test_logs (:info, "Iter 1") (:error, "Error during the handling of a logging action") (:info, "Iter 3") begin
+        with_algorithmlogger(:PostStep => flaky_logger) do
+            solve(problem, algorithm)
+        end
+    end
+end
