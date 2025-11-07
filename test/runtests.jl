@@ -12,6 +12,10 @@ end
     include("stopping_criterion.jl")
 end
 
+@safetestset "Logging Infrastructure" begin
+    include("logging.jl")
+end
+
 @safetestset "Aqua" begin
     using AlgorithmsInterface, Aqua
     Aqua.test_all(AlgorithmsInterface)
