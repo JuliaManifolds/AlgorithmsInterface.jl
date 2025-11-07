@@ -4,184 +4,478 @@ CollapsedDocStrings = true
 
 # [Logging](@id sec_logging)
 
-In the final part of the square‑root story we instrument the Heron iteration with logging.
-The logging system answers two questions separately:
+In the final part of the square‑root story we augment Heron's iteration with logging functionality.
+For example, we might be interested in the convergence behavior throughout the iterations, timing information, or storing intermediate values for later analysis.
+The logging system is designed to provide full flexibility over this behavior, without polluting the core algorithm implementation.
+Additionally, we strive to *pay for what you get*: when no logging is configured, there is minimal overhead.
 
+## Why separate logging from algorithms?
+
+Decoupling logging from algorithm logic lets us:
+
+* Add diagnostic output without modifying algorithm code.
+* Compose multiple logging behaviors (printing, storing, timing) independently.
+* Reuse generic logging actions across different algorithms.
+* Disable logging globally with zero runtime cost.
+* Instrument algorithms with custom events for domain-specific diagnostics.
+* Customize logging behavior *a posteriori*: users can add logging features to existing algorithms without modifying library code.
+
+The logging system aims to achieve these goals by separating the logging logic into two separate parts.
+These parts can be roughly described as *events* and *actions*, where the logging system is responsible for mapping between them.
+Concretely, we have:
+
+* **When do we log?** → an [`AlgorithmLogger`](@ref) mapping events to actions.
 * **What happens when we log?** → a [`LoggingAction`](@ref).
-* **When do we log?** → an [`AlgorithmLogger`](@ref) mapping contexts to actions.
 
-This separation lets users compose rich behaviors (printing, collecting stats, plotting) without modifying algorithm code, and lets algorithm authors emit domain‑specific events.
+This separation allows users to compose rich behaviors (printing, collecting statistics, plotting) without modifying algorithm code, and lets algorithm authors emit domain‑specific events.
 
-## Recap: Default logging contexts
+## Using the default logging actions
 
-The generic `solve!` loop in `interface/interface.jl` emits these contexts:
+Continuing from the [Stopping Criteria](@ref) page, we have our Heron's method implementation ready:
 
-| Context    | Meaning                                  |
-|-----------:|------------------------------------------|
-| `:Start`   | Just before iteration begins             |
-| `:Init`    | After state initialization               |
-| `:PreStep` | Right before a `step!`                   |
-| `:PostStep`| Right after a `step!`                    |
-| `:Stop`    | After halting (stopping criterion met)   |
+```@example Heron
+using AlgorithmsInterface
+using Printf
+using Dates # hide
 
-Algorithms may add their own (e.g. `:Refinement`, `:RejectedStep`) by calling [`handle_message`](@ref) with a custom symbol.
-
-## Global enable/disable
-
-```julia
-using AlgorithmsInterface: set_global_logging_state!, get_global_logging_state
-set_global_logging_state!(false)  # silence all logging
-previous = set_global_logging_state!(true)  # restore
-```
-
-## Instrumenting the square‑root algorithm
-
-We start with minimal feedback: iteration number and current estimate.
-
-```julia
-iter_printer = CallbackAction() do alg, prob, st
-    @printf("Iter %3d  x = %.12f\n", st.iteration, st.x)
+struct SqrtProblem <: Problem
+    S::Float64
 end
 
-logger = AlgorithmLogger(:PostStep => iter_printer)
-
-with(ALGORITHM_LOGGER => logger) do
-    state = solve(SqrtProblem(42.0), HeronAlgorithm(1.0, StopAfterIteration(8)))
-    println("Final ≈ sqrt(42): ", state.x)
+struct HeronAlgorithm <: Algorithm
+    stopping_criterion
 end
+
+mutable struct HeronState <: State
+    iterate::Float64
+    iteration::Int
+    stopping_criterion_state
+end
+
+function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
+    x0 = rand()
+    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
+    return HeronState(x0, 0, stopping_criterion_state)
+end
+
+function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
+    state.iterate = rand()
+    state.iteration = 0
+    initialize_state!(problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state)
+    return state
+end
+
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
+    S = problem.S
+    x = state.iterate
+    state.iterate = 0.5 * (x + S / x)
+    return state
+end
+
+function heron_sqrt(x; stopping_criterion = StopAfterIteration(10))
+    prob = SqrtProblem(x)
+    alg  = HeronAlgorithm(stopping_criterion)
+    state = solve(prob, alg)  # allocates & runs
+    return state.iterate
+end
+nothing # hide
 ```
 
-### Timing the run
+It is already interesting to note that there are no further modifications necessary to start leveraging the logging system.
 
-Add actions for start timestamp and per‑step elapsed time:
+### Basic iteration printing
 
-```julia
+Let's start with a very basic example of logging: printing iteration information after each step.
+We use [`CallbackAction`](@ref) to wrap a simple function that accesses the state, and prints the `iteration` as well as the `iterate`.
+
+```@example Heron
+using Printf
+iter_printer = CallbackAction() do problem, algorithm, state
+    @printf("Iter %3d: x = %.12f\n", state.iteration, state.iterate)
+end
+nothing # hide
+```
+
+To activate this logger, we wrap the section of code that we want to enable logging for, and map the `:PostStep` context to our action.
+This is achieved through the [`with_algorithmlogger`](@ref) function, and uses Julia's `with` function to set the [`ALGORITHM_LOGGER`](@ref) scoped value:
+
+```@example Heron
+with_algorithmlogger(:PostStep => iter_printer) do
+    sqrt2 = heron_sqrt(2.0)
+end
+nothing # hide
+```
+
+### Default logging contexts
+
+The default `solve!` loop emits logging events at several key points during iteration:
+
+|  context  |              event                  |
+| --------- | ----------------------------------- |
+| :Start    | The solver will start.              |
+| :PreStep  | The solver is about to take a step. |
+| :PostStep | The solver has taken a step.        |
+| :Stop     | The solver has finished.            |
+
+Any of these events can be hooked into to attach a logging action.
+For example, we may expand on the previous example as follows:
+
+```@example Heron
+start_printer = CallbackAction() do problem, algorithm, state
+    @printf("Start: x = %.12f\n", state.iterate)
+end
+stop_printer = CallbackAction() do problem, algorithm, state
+    @printf("Stop %3d: x = %.12f\n", state.iteration, state.iterate)
+end
+
+with_algorithmlogger(:Start => start_printer, :PostStep => iter_printer, :Stop => stop_printer) do
+    sqrt2 = heron_sqrt(2.0)
+end
+nothing # hide
+```
+
+Furthermore, specific algorithms could emit events for custom contexts too.
+We will come back to this in the section on the [`AlgorithmLogger`](@ref sec_algorithmlogger) design.
+
+### Timing execution
+
+Let's add timing information to see how long each iteration takes:
+
+```@example Heron
 start_time = Ref{Float64}(0.0)
 
-record_start = CallbackAction() do alg, prob, st
+record_start = CallbackAction() do problem, algorithm, state
     start_time[] = time()
 end
 
-show_elapsed = CallbackAction() do alg, prob, st
+show_elapsed = CallbackAction() do problem, algorithm, state
     dt = time() - start_time[]
-    @printf("Iter %3d  elapsed = %.3fs\n", st.iteration, dt)
+    @printf("  elapsed = %.3fs\n", dt)
 end
 
-logger = AlgorithmLogger(
-    :Init => record_start,
-    :PostStep => LogGroup([iter_printer, show_elapsed]),
-    :Stop => CallbackAction() do alg, prob, st
-        @printf("Done after %d iterations (total %.3fs)\n", st.iteration, time() - start_time[])
+with_algorithmlogger(
+    :Start => record_start,
+    :PostStep => show_elapsed,
+    :Stop => CallbackAction() do problem, algorithm, state
+        total = time() - start_time[]
+        @printf("Done after %d iterations (total %.3fs)\n", state.iteration, total)
     end,
-)
+) do
+    sqrt2 = heron_sqrt(2)
+end
+nothing # hide
 ```
 
-### Conditional logging (every N steps)
+### Conditional logging
 
-```julia
-every_five = IfAction(
-    (prob, alg, st; kwargs...) -> st.iteration % 5 == 0,
-    CallbackAction() do alg, prob, st
-        println("Checkpoint at iteration ", st.iteration)
-    end,
+Sometimes we only want to log at specific iterations. [`IfAction`](@ref) wraps another action behind a predicate:
+
+```@example Heron
+every_two = IfAction(
+    (problem, algorithm, state; kwargs...) -> state.iteration % 2 == 0,
+    iter_printer,
 )
 
-logger = AlgorithmLogger(:PostStep => every_five)
+with_algorithmlogger(:PostStep => every_two) do
+    sqrt2 = heron_sqrt(2)
+end
+nothing # hide
 ```
 
-### Capturing history for analysis
+This prints only on even iterations, reducing output for long-running algorithms.
 
-Instead of printing, store iterates in a custom action:
+### Storing intermediate values
 
-```julia
+Instead of just printing, we can capture the entire trajectory for later analysis:
+
+```@example Heron
 struct CaptureHistory <: LoggingAction
-    xs::Vector{Float64}
+    iterates::Vector{Float64}
 end
 CaptureHistory() = CaptureHistory(Float64[])
 
-function AlgorithmsInterface.handle_message!(act::CaptureHistory, prob::SqrtProblem, alg::HeronAlgorithm, st::HeronState; kwargs...)
-    push!(act.xs, st.x)
+function AlgorithmsInterface.handle_message!(
+        action::CaptureHistory,
+        problem::SqrtProblem,
+        algorithm::HeronAlgorithm,
+        state::HeronState;
+        kwargs...
+)
+    push!(action.iterates, state.iterate)
     return nothing
 end
 
 history = CaptureHistory()
-logger = AlgorithmLogger(:PostStep => history)
-with(ALGORITHM_LOGGER => logger) do
-    solve(SqrtProblem(42.0), HeronAlgorithm(1.0, StopWhenStable(1e-10) & StopAfterIteration(200)))
+
+with_algorithmlogger(:PostStep => history) do
+    sqrt2 = heron_sqrt(2)
 end
-println("Stored ", length(history.xs), " iterates")
+
+println("Stored ", length(history.iterates), " iterates")
+println("First few values: ", history.iterates[1:min(3, end)])
 ```
 
-You can later inspect convergence visually (plot `history.xs`).
+You can later analyze convergence rates, plot trajectories, or export data—all without modifying the algorithm.
 
-### Multiple simultaneous behaviors
+### Combining multiple logging behaviors
 
-Group actions to avoid multiple context entries:
+We can combine printing, timing, and storage simultaneously:
+
+```@example Heron
+history2 = CaptureHistory()
+
+with_algorithmlogger(
+    :Start => record_start,
+    :PostStep => GroupAction([iter_printer, history2]),
+    :Stop => CallbackAction() do problem, algorithm, state
+        @printf("Captured %d iterates in %.3fs\n", length(history2.iterates), time() - start_time[])
+    end,
+) do
+    sqrt2 = heron_sqrt(2)
+end
+nothing # hide
+```
+
+## Implementing custom LoggingActions
+
+While [`CallbackAction`](@ref) is convenient for quick instrumentation, custom types give more control and possibly better performance.
+Let's implement a more sophisticated example: tracking iteration statistics.
+
+### The required interface
+
+To implement a custom [`LoggingAction`](@ref), you need:
+
+1. A concrete subtype of `LoggingAction`.
+2. An implementation of [`handle_message!`](@ref) that defines the behavior.
+
+The signature of `handle_message!` is:
 
 ```julia
-logger = AlgorithmLogger(
-    :PostStep => LogGroup([iter_printer, history, every_five]),
+function handle_message!(
+        action::YourAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...
 )
-```
-
-### Adding custom contexts
-
-Suppose we augment Heron's method with a fallback if `x` becomes non‑finite. We can log that:
-
-```julia
-fallback_action = CallbackAction() do alg, prob, st; println("Fallback triggered at iteration ", st.iteration); end
-logger = AlgorithmLogger(:Fallback => fallback_action, :PostStep => iter_printer)
-
-function safe_step!(prob::SqrtProblem, alg::HeronAlgorithm, st::HeronState)
-    isnan(st.x) && begin
-        handle_message(prob, alg, st, :Fallback)
-        st.x = alg.initial_guess
-    end
-    step!(prob, alg, st)
+    # Your logging logic here
+    return nothing
 end
 ```
 
-Just call `handle_message(prob, alg, st, :YourContext)` whenever the event occurs.
+The `kwargs...` can contain context-specific information, though the default contexts don't currently pass additional data.
 
-### Robustness: error isolation
+### Example: Statistics collector
 
-If a `LoggingAction` throws, the system catches and reports the error without aborting the algorithm. Keep actions side‑effect focused and fast; heavy processing can collect data during iteration and post‑process afterwards.
+Let's build an action that tracks statistics across iterations:
 
-### Writing a new action type (summary statistics)
-
-```julia
-struct StatsCollector <: LoggingAction
-    n::Int
-    sum::Float64
+```@example Heron
+mutable struct StatsCollector <: LoggingAction
+    count::Int              # aggregate number of evaluations
+    sum::Float64            # sum of all intermediate values
+    sum_squares::Float64    # square sum of all intermediate values
 end
-StatsCollector() = StatsCollector(0, 0.0)
+StatsCollector() = StatsCollector(0, 0.0, 0.0)
 
-function AlgorithmsInterface.handle_message!(act::StatsCollector, prob::SqrtProblem, alg::HeronAlgorithm, st::HeronState; kwargs...)
-    act.n += 1
-    act.sum += st.x
+function AlgorithmsInterface.handle_message!(
+        action::StatsCollector, problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState;
+        kwargs...
+)
+    action.count += 1
+    action.sum += state.iterate
+    action.sum_squares += state.iterate^2
+    return nothing
 end
 
-avg_action = CallbackAction() do alg, prob, st
-    # could query stats at :Stop using captured object
+function compute_stats(stats::StatsCollector)
+    n = stats.count
+    mean = stats.sum / n
+    variance = (stats.sum_squares / n) - mean^2
+    return (mean=mean, variance=variance, count=n)
 end
+
 stats = StatsCollector()
-logger = AlgorithmLogger(:PostStep => LogGroup([stats, iter_printer]))
+
+with_algorithmlogger(:PostStep => stats) do
+    sqrt2 = heron_sqrt(2.0; stopping_criterion = StopAfter(Millisecond(50)))
+end
+
+result = compute_stats(stats)
+println("Collected $(result.count) samples")
+println("Mean iterate: $(result.mean)")
+println("Variance: $(result.variance)")
 ```
 
-At the end:
+This pattern of collecting data during iteration and post-processing afterward is efficient and keeps the hot loop fast.
+
+## [The AlgorithmLogger](@id sec_algorithmlogger)
+
+The [`AlgorithmLogger`](@ref) is the dispatcher that routes logging events to actions.
+Understanding its design helps when adding custom logging contexts.
+
+### How logging events are emitted
+
+Inside the `solve!` function, logging events are emitted at key points:
 
 ```julia
-println("Average iterate value = ", stats.sum / stats.n)
+function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
+    logger = algorithm_logger()
+    
+    initialize_state!(problem, algorithm, state; kwargs...)
+    emit_message(logger, problem, algorithm, state, :Start)
+    
+    while !is_finished!(problem, algorithm, state)
+        emit_message(logger, problem, algorithm, state, :PreStep)
+        
+        increment!(state)
+        step!(problem, algorithm, state)
+        
+        emit_message(logger, problem, algorithm, state, :PostStep)
+    end
+    
+    emit_message(logger, problem, algorithm, state, :Stop)
+    
+    return state
+end
 ```
 
-## Choosing what to store vs. print
+The [`emit_message`](@ref) function looks up the context (e.g., `:PostStep`) in the logger's action dictionary and calls `handle_message!` on the corresponding action.
 
-Guidelines:
+### Global enable/disable
 
-* Use printing for immediate feedback (development / CLI runs).
-* Store vectors / tables in custom actions for later analysis or plotting.
-* Keep actions pure w.r.t. algorithm state (read but do not modify `state`).
-* Prefer one `LogGroup` per context over many individual mappings.
+For production runs or benchmarking, you can disable all logging globally:
+
+```@example Heron
+# By default, logging is enabled:
+println("Logging enabled: ", AlgorithmsInterface.get_global_logging_state())
+with_algorithmlogger(:PostStep => iter_printer) do
+    heron_sqrt(2.0)
+end
+nothing # hide
+```
+
+```@example Heron
+# But, logging can also be disabled:
+previous_state = AlgorithmsInterface.set_global_logging_state!(false)
+
+# This will not log anything, even with a logger configured
+with_algorithmlogger(:PostStep => iter_printer) do
+    heron_sqrt(2.0)
+end
+
+# Restore previous state
+AlgorithmsInterface.set_global_logging_state!(previous_state)
+nothing # hide
+```
+
+When logging is disabled globally, [`algorithm_logger`](@ref) returns `nothing`, and `emit_message` becomes a no-op with minimal overhead.
+
+### Error isolation
+
+If a `LoggingAction` throws an exception, the logging system catches it and reports an error without aborting the algorithm:
+
+```@example Heron
+buggy_action = CallbackAction() do problem, algorithm, state
+    if state.iteration == 3
+        error("Intentional logging error at iteration 3")
+    end
+    @printf("Iter %d\n", state.iteration)
+end
+
+with_algorithmlogger(:PostStep => buggy_action) do
+    heron_sqrt(2.0)
+    println("Algorithm completed despite logging error")
+end
+```
+
+This robustness ensures that bugs in logging code don't compromise the algorithm's correctness.
+
+## Adding custom logging contexts
+
+Algorithms can emit custom logging events for domain-specific scenarios.
+For example, adaptive algorithms might emit events when step sizes are reduced, or when steps are rejected.
+Here we will illustrate this by a slight adaptation of our algorithm, which could restart if convergence wasn't reached after 10 iterations.
+
+### Emitting custom events
+
+To emit a custom logging event from within your algorithm, call [`emit_message`](@ref):
+
+```@example Heron
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
+    # Suppose we check for numerical issues
+    if !isfinite(state.iterate) || mod(state.iteration, 10) == 0
+        emit_message(problem, algorithm, state, :Restart)
+        state.iterate = rand()  # Reset the iterate an try again
+    end
+    
+    # Normal step
+    S = problem.S
+    x = state.iterate
+    state.iterate = 0.5 * (x + S / x)
+    return state
+end
+nothing # hide
+```
+
+Now users can attach actions to the `:Restart` context:
+
+```@example Heron
+issue_counter = Ref(0)
+issue_action = CallbackAction() do problem, algorithm, state
+    issue_counter[] += 1
+    println("⚠️  Numerical issue detected at iteration ", state.iteration)
+end
+
+with_algorithmlogger(:Restart => issue_action, :PostStep => iter_printer) do
+    sqrt2 = heron_sqrt(2.0; stopping_criterion = StopAfterIteration(30))
+end
+
+nothing # hide
+```
+
+
+## Best practices
+
+### Performance considerations
+
+* Logging actions may be fast or slow, since the overhead is only incurred when actually using them.
+* Algorithms should be mindful of emitting events in hot loops. These events incur an overhead similar to accessing a `ScopedValue` (~10-100 ns), even when no logging action is registered.
+* For expensive operations (plotting, I/O), it is often better to collect data during iteration and process afterward.
+* Use `set_global_logging_state!(false)` for production benchmarks.
+
+### Guidelines for custom actions
+
+When designing custom logging actions for your algorithms:
+
+* It is good practice to avoid **modifying** the algorithm state, as this might leave the algorithm in an invalid state to continue running.
+* The logging state and global state can be mutated as you see fit, but be mindful of properly initializing and resetting the state if so desired.
+* If you need to influence the algorithm, use stopping criteria or modify the algorithm itself.
+* For generic and reusable actions, document which properties they access from the `problem, algorithm, state` triplet, and be prepared to handle cases where these aren't present.
+
+### Guidelines for custom contexts
+
+When designing custom logging contexts for your algorithms:
+
+* Use descriptive symbol names (`:LineSearchFailed`, `:StepRejected`, `:Refined`).
+* Document which contexts your algorithm emits and when.
+* Keep context-specific data in `kwargs...` if needed (though the default contexts don't use this).
+* Emit events at meaningful decision points, not in tight inner loops.
+
+## Summary
+
+Implementing logging involves three main components:
+
+1. **LoggingAction**: Define what happens when a logging event occurs.
+   - Use `CallbackAction` for quick inline functions.
+   - Implement custom subtypes for reusable, stateful logging.
+   - Implement `handle_message!(action, problem, algorithm, state; kwargs...)`.
+
+2. **AlgorithmLogger**: Map contexts (`:Start`, `:PostStep`, etc.) to actions.
+   - Construct with `with_algorithmlogger(:Context => action, ...)`.
+   - Use `GroupAction` to compose multiple actions at one context.
+
+3. **Custom contexts**: Emit domain-specific events from algorithms.
+   - Call `emit_message(problem, algorithm, state, :YourContext)`.
+   - Document custom contexts in your algorithm's documentation.
+   - Use descriptive symbol names.
+
+The logging system is designed for composability and zero-overhead when disabled, letting you instrument algorithms without compromising performance or code clarity.
 
 ## Reference API
 
@@ -196,4 +490,11 @@ Private = true
 
 ## Wrap‑up
 
-You have now seen: defining an algorithm (interface page), controlling halting (stopping criteria), and instrumenting execution (logging). Together these patterns encourage modular, testable iterative algorithm design.
+You have now seen the three pillars of the AlgorithmsInterface:
+
+* [**Interface**](@ref sec_interface): Defining algorithms with `Problem`, `Algorithm`, and `State`.
+* [**Stopping criteria**](@ref): Controlling when iteration halts with composable conditions.
+* [**Logging**](@ref sec_logging): Instrumenting execution with flexible, composable actions.
+
+Together, these patterns encourage modular, testable, and maintainable iterative algorithm design.
+You can now build algorithms that are easy to configure, monitor, and extend without invasive modifications to core logic.

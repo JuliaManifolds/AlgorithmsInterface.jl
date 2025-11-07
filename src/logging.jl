@@ -16,24 +16,26 @@ abstract type LoggingAction end
     handle_message!(action::LoggingAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...)
 
 Entry-point for defining an implementation of how to handle a logging event for a given [`LoggingAction`](@ref).
-""" handle_message!(::LoggingAction, ::Algorithm, ::Problem, ::State; kwargs...)
+""" handle_message!(::LoggingAction, ::Problem, ::Algorithm, ::State; kwargs...)
 
 # Concrete LoggingActions
 # -----------------------
 """
-    LogGroup(actions::Vector{<:LoggingAction})
+    GroupAction(actions::LoggingAction...)
+    GroupAction(actions::Vector{<:LoggingAction})
 
 Concrete [`LoggingAction`](@ref) that can be used to sequentially perform each of the `actions`.
 """
-struct LogGroup{A <: LoggingAction} <: LoggingAction
+struct GroupAction{A <: LoggingAction} <: LoggingAction
     actions::Vector{A}
 end
+GroupAction(actions::LoggingAction...) = GroupAction(collect(LoggingAction, actions))
 
 function handle_message!(
-        action::LogGroup, problem::Problem, algorithm::Algorithm, state::State; kwargs...
+        action::GroupAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...
     )
     for child in action.actions
-        handle_message!(child, algorithm, problem, state; kwargs...)
+        handle_message!(child, problem, algorithm, state; kwargs...)
     end
     return nothing
 end
@@ -44,7 +46,7 @@ end
 Concrete [`LoggingAction`](@ref) that handles a logging event through an arbitrary callback function.
 The callback function must have the following signature:
 ```julia
-callback(algorithm, problem, state; kwargs...) = ...
+callback(problem, algorithm, state; kwargs...) = ...
 ```
 Here `kwargs...` are optional and can be filled out with context-specific information.
 """
@@ -55,7 +57,7 @@ end
 function handle_message!(
         action::CallbackAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...
     )
-    action.callback(algorithm, problem, state; kwargs...)
+    action.callback(problem, algorithm, state; kwargs...)
     return nothing
 end
 
@@ -66,7 +68,7 @@ Concrete [`LoggingAction`](@ref) that wraps another action and hides it behind a
 emitting logging events whenever the `predicate` evaluates to true. The `predicate` must have
 the signature:
 ```julia
-predicate(algorithm, problem, state; kwargs...)::Bool
+predicate(problem, algorithm, state; kwargs...)::Bool
 ```
 """
 struct IfAction{F, A <: LoggingAction} <: LoggingAction
@@ -78,7 +80,7 @@ function handle_message!(
         action::IfAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...
     )
     return action.predicate(problem, algorithm, state; kwargs...) ?
-        handle_message(action.action, problem, algorithm, state; kwargs...) :
+        handle_message!(action.action, problem, algorithm, state; kwargs...) :
         nothing
 end
 
@@ -93,7 +95,6 @@ By default, the following events trigger a logging action with the given `contex
 |  context  |              event                  |
 | --------- | ----------------------------------- |
 | :Start    | The solver will start.              |
-| :Init     | The solver has been initialized.    |
 | :PreStep  | The solver is about to take a step. |
 | :PostStep | The solver has taken a step.        |
 | :Stop     | The solver has finished.            |
@@ -105,8 +106,12 @@ See also the scoped value [`AlgorithmsInterface.algorithm_logger`](@ref).
 struct AlgorithmLogger
     actions::Dict{Symbol, LoggingAction}
 end
-AlgorithmLogger(args...) = AlgorithmLogger(Dict{Symbol, LoggingAction}(args...))
+AlgorithmLogger(args::Pair...) = AlgorithmLogger(Dict{Symbol, LoggingAction}(args...))
 
+function with_algorithmlogger(f, args...)
+    logger = AlgorithmLogger(args...)
+    return with(f, ALGORITHM_LOGGER => logger)
+end
 
 @doc """
     get_global_logging_state()
@@ -118,12 +123,11 @@ Retrieve or set the value to globally enable or disable the handling of logging 
 const LOGGING_ENABLED = Ref(true)
 
 get_global_logging_state() = LOGGING_ENABLED[]
-function set_global_logging_state(state::Bool)
+function set_global_logging_state!(state::Bool)
     previous = LOGGING_ENABLED[]
     LOGGING_ENABLED[] = state
     return previous
 end
-
 
 @doc """
     algorithm_logger()::Union{AlgorithmLogger, Nothing}
@@ -161,8 +165,11 @@ function emit_message(
     )
     @noinline; @nospecialize
     action::LoggingAction = @something(get(alglogger.actions, context, nothing), return nothing)
+
+    # Try-catch around logging to avoid stopping the algorithm when a logging action fails
+    # but still emit an error message
     try
-        handle_message!(action, problem, algorithm, state, args...; kwargs...)
+        handle_message!(action, problem, algorithm, state; kwargs...)
     catch err
         bt = catch_backtrace()
         @error "Error during the handling of a logging action" action exception = (err, bt)

@@ -23,6 +23,8 @@ include("logging.jl")
 export Algorithm, Problem, State
 export StoppingCriterion, StoppingCriterionState
 export StopAfter, StopAfterIteration, StopWhenAll, StopWhenAny
+export AlgorithmLogger, with_algorithmlogger, emit_message
+export LoggingAction, CallbackAction, IfAction, GroupAction
 export is_finished, is_finished!
 export initialize_state, initialize_state!
 export step!, solve, solve!

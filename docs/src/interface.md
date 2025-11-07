@@ -16,7 +16,7 @@ same moving pieces:
 * immutable configuration (parameters and knobs of the chosen algorithm), and
 * mutable working data (current iterate, caches, diagnostics) that evolves as you step.
 
-Bundling these together loosely—without forcing one giant monolithic type—makes it easier to:
+Bundling these together loosely without forcing one giant monolithic type makes it easier to:
 
 * reason about what is allowed to change and what must remain fixed,
 * write generic tooling (e.g. stopping logic, logging, benchmarking) that applies across many algorithms,
