@@ -37,10 +37,10 @@ function initialize_state!(
     state.iteration = 0
     state.iterate = 1.0
     initialize_state!(
-        state.stopping_criterion_state,
         problem,
         algorithm,
         algorithm.stopping_criterion,
+        state.stopping_criterion_state,
     )
     return state
 end
