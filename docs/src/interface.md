@@ -107,7 +107,7 @@ end
 ```
 
 Note that we are only focussing on the actual algorithm, and *not* incrementing the iteration counter.
-These kinds of bookkeeping should be handled by the [`increment!(state)`](@ref) function, which will by default already increment the iteration counter.
+These kinds of bookkeeping should be handled by the [`AlgorithmsInterface.increment!`](@ref) function, which will by default already increment the iteration counter.
 The following generic functionality is therefore enough for our purposes, and does *not* need to be defined.
 Nevertheless, if additional bookkeeping would be desired, this can be achieved by overloading that function:
 

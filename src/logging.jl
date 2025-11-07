@@ -87,9 +87,27 @@ end
 # Algorithm Logger
 # ----------------
 """
-    AlgorithmLogger(context => action, ...)
+    AlgorithmLogger(context => action, ...) -> logger
 
 Logging transformer that handles the logic of dispatching logging events to logging actions.
+This is implemented through `logger[context]`.
+
+See also the scoped value [`AlgorithmsInterface.algorithm_logger`](@ref).
+"""
+struct AlgorithmLogger
+    actions::Dict{Symbol, LoggingAction}
+end
+AlgorithmLogger(args::Pair...) = AlgorithmLogger(Dict{Symbol, LoggingAction}(args...))
+
+Base.getindex(logger::AlgorithmLogger, context::Symbol) = get(logger.actions, context, nothing)
+
+"""
+    with_algorithmlogger(f, (context => action)::Pair{Symbol, LoggingAction}...)
+    with_algorithmlogger((context => action)::Pair{Symbol, LoggingAction}...) do
+        # insert arbitrary code here
+    end
+
+Run the given zero-argument function `f()` while mapping events of given `context`s to their respective `action`s.
 By default, the following events trigger a logging action with the given `context`:
 
 |  context  |              event                  |
@@ -99,16 +117,11 @@ By default, the following events trigger a logging action with the given `contex
 | :PostStep | The solver has taken a step.        |
 | :Stop     | The solver has finished.            |
 
-Specific algorithms can associate other events with other contexts.
+However, further events and actions can be emitted through the [`emit_message`](@ref) interface.
 
 See also the scoped value [`AlgorithmsInterface.algorithm_logger`](@ref).
 """
-struct AlgorithmLogger
-    actions::Dict{Symbol, LoggingAction}
-end
-AlgorithmLogger(args::Pair...) = AlgorithmLogger(Dict{Symbol, LoggingAction}(args...))
-
-function with_algorithmlogger(f, args...)
+@inline function with_algorithmlogger(f, args...)
     logger = AlgorithmLogger(args...)
     return with(f, ALGORITHM_LOGGER => logger)
 end
@@ -153,18 +166,21 @@ end
     emit_message(algorithm_logger, problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...) -> nothing
 
 Use the current or the provided algorithm logger to handle the logging event of the given `context`.
-The [`AlgorithmLogger`](@ref) is responsible for dispatching the correct events to the correct [`LoggingAction`](@ref)s.
+The first signature should be favored as it correctly handles accessing the `logger` and respecting global toggles for enabling and disabling the logging system.
+
+The second signature should be used exclusively in (very) hot loops, where the overhead of [`AlgorithmsInterface.algorithm_logger()`](@ref) is too large.
+In this case, you can manually extract the `algorithm_logger()` once outside of the hot loop.
 """
 emit_message(problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...) =
     emit_message(algorithm_logger(), problem, algorithm, state, context; kwargs...)
 emit_message(::Nothing, problem::Problem, algorithm::Algorithm, state::State, context::Symbol; kwargs...) =
     nothing
 function emit_message(
-        alglogger::AlgorithmLogger, problem::Problem, algorithm::Algorithm, state::State, context::Symbol;
+        logger::AlgorithmLogger, problem::Problem, algorithm::Algorithm, state::State, context::Symbol;
         kwargs...
     )
     @noinline; @nospecialize
-    action::LoggingAction = @something(get(alglogger.actions, context, nothing), return nothing)
+    action::LoggingAction = @something(logger[context], return nothing)
 
     # Try-catch around logging to avoid stopping the algorithm when a logging action fails
     # but still emit an error message

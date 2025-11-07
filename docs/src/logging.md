@@ -24,14 +24,14 @@ The logging system aims to achieve these goals by separating the logging logic i
 These parts can be roughly described as *events* and *actions*, where the logging system is responsible for mapping between them.
 Concretely, we have:
 
-* **When do we log?** → an [`AlgorithmLogger`](@ref) mapping events to actions.
-* **What happens when we log?** → a [`LoggingAction`](@ref).
+* **When do we log?** → an [`with_algorithmlogger`](@ref) to control how to map events to actions.
+* **What happens when we log?** → a [`LoggingAction`](@ref) to determine what to do when an event happens.
 
 This separation allows users to compose rich behaviors (printing, collecting statistics, plotting) without modifying algorithm code, and lets algorithm authors emit domain‑specific events.
 
 ## Using the default logging actions
 
-Continuing from the [Stopping Criteria](@ref) page, we have our Heron's method implementation ready:
+Continuing from the [Stopping Criteria](@ref sec_stopping) page, we have our Heron's method implementation ready:
 
 ```@example Heron
 using AlgorithmsInterface
@@ -97,7 +97,7 @@ nothing # hide
 ```
 
 To activate this logger, we wrap the section of code that we want to enable logging for, and map the `:PostStep` context to our action.
-This is achieved through the [`with_algorithmlogger`](@ref) function, and uses Julia's `with` function to set the [`ALGORITHM_LOGGER`](@ref) scoped value:
+This is achieved through the [`with_algorithmlogger`](@ref) function, which under the hood uses Julia's `with` function to manipulate a scoped value.
 
 ```@example Heron
 with_algorithmlogger(:PostStep => iter_printer) do
@@ -246,7 +246,7 @@ Let's implement a more sophisticated example: tracking iteration statistics.
 To implement a custom [`LoggingAction`](@ref), you need:
 
 1. A concrete subtype of `LoggingAction`.
-2. An implementation of [`handle_message!`](@ref) that defines the behavior.
+2. An implementation of [`AlgorithmsInterface.handle_message!`](@ref) that defines the behavior.
 
 The signature of `handle_message!` is:
 
@@ -306,7 +306,7 @@ This pattern of collecting data during iteration and post-processing afterward i
 
 ## [The AlgorithmLogger](@id sec_algorithmlogger)
 
-The [`AlgorithmLogger`](@ref) is the dispatcher that routes logging events to actions.
+The [`AlgorithmsInterface.AlgorithmLogger`](@ref) is the dispatcher that routes logging events to actions.
 Understanding its design helps when adding custom logging contexts.
 
 ### How logging events are emitted
@@ -315,21 +315,19 @@ Inside the `solve!` function, logging events are emitted at key points:
 
 ```julia
 function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
-    logger = algorithm_logger()
-    
     initialize_state!(problem, algorithm, state; kwargs...)
-    emit_message(logger, problem, algorithm, state, :Start)
+    emit_message(problem, algorithm, state, :Start)
     
     while !is_finished!(problem, algorithm, state)
-        emit_message(logger, problem, algorithm, state, :PreStep)
+        emit_message(problem, algorithm, state, :PreStep)
         
         increment!(state)
         step!(problem, algorithm, state)
         
-        emit_message(logger, problem, algorithm, state, :PostStep)
+        emit_message(problem, algorithm, state, :PostStep)
     end
     
-    emit_message(logger, problem, algorithm, state, :Stop)
+    emit_message(problem, algorithm, state, :Stop)
     
     return state
 end
@@ -364,7 +362,14 @@ AlgorithmsInterface.set_global_logging_state!(previous_state)
 nothing # hide
 ```
 
-When logging is disabled globally, [`algorithm_logger`](@ref) returns `nothing`, and `emit_message` becomes a no-op with minimal overhead.
+This works since the default implementation of [`emit_message`](@ref) first retrieves the current logger through [`AlgorithmsInterface.algorithm_logger`](@ref):
+
+```julia
+emit_message(problem, algorithm, state, context; kwargs...) =
+    emit_message(algorithm_logger(), problem, algorithm, state, context; kwargs...)
+```
+
+When logging is disabled globally, [`algorithm_logger`](@ref AlgorithmsInterface.algorithm_logger) returns `nothing`, and `emit_message` becomes a no-op with minimal overhead.
 
 ### Error isolation
 
@@ -493,7 +498,7 @@ Private = true
 You have now seen the three pillars of the AlgorithmsInterface:
 
 * [**Interface**](@ref sec_interface): Defining algorithms with `Problem`, `Algorithm`, and `State`.
-* [**Stopping criteria**](@ref): Controlling when iteration halts with composable conditions.
+* [**Stopping criteria**](@ref sec_stopping): Controlling when iteration halts with composable conditions.
 * [**Logging**](@ref sec_logging): Instrumenting execution with flexible, composable actions.
 
 Together, these patterns encourage modular, testable, and maintainable iterative algorithm design.

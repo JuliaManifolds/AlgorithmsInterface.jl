@@ -20,13 +20,20 @@ include("interface/interface.jl")
 include("stopping_criterion.jl")
 include("logging.jl")
 
+# general interface
 export Algorithm, Problem, State
+export initialize_state, initialize_state!
+
+export step!, solve, solve!
+
+# stopping criteria
 export StoppingCriterion, StoppingCriterionState
 export StopAfter, StopAfterIteration, StopWhenAll, StopWhenAny
-export AlgorithmLogger, with_algorithmlogger, emit_message
+
+export is_finished, is_finished!, get_reason, indicates_convergence
+
+# Logging interface
 export LoggingAction, CallbackAction, IfAction, GroupAction
-export is_finished, is_finished!
-export initialize_state, initialize_state!
-export step!, solve, solve!
+export with_algorithmlogger, emit_message
 
 end # module AlgorithmsInterface

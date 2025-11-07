@@ -2,7 +2,7 @@
 CollapsedDocStrings = true
 ```
 
-# Stopping criteria
+# [Stopping criteria](@id sec_stopping)
 
 Continuing the square‑root story from the [Interface](@ref sec_interface) page, we now decide **when** the iteration should halt.
 A stopping criterion encapsulates halting logic separately from the algorithm update rule.
