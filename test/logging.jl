@@ -78,3 +78,24 @@ end
         end
     end
 end
+
+@testset "IfAction only logs on even iterations" begin
+    problem = LogDummyProblem()
+    algorithm = LogDummyAlgorithm(StopAfterIteration(4))
+
+    # Callback that logs the iteration
+    iter_logger = CallbackAction() do problem, algorithm, state
+        @info "Even Iter $(state.iteration)"
+    end
+
+    # Predicate: only log on even iterations
+    even_predicate = (problem, algorithm, state; kwargs...) -> state.iteration % 2 == 0
+    if_logger = IfAction(even_predicate, iter_logger)
+
+    # Expect logs only for iterations 2 and 4
+    @test_logs (:info, "Even Iter 2") (:info, "Even Iter 4") begin
+        with_algorithmlogger(:PostStep => if_logger) do
+            solve(problem, algorithm)
+        end
+    end
+end
