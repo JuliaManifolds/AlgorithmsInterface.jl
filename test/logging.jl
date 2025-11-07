@@ -99,3 +99,27 @@ end
         end
     end
 end
+
+@testset "GroupAction logs multiple actions" begin
+    problem = LogDummyProblem()
+    algorithm = LogDummyAlgorithm(StopAfterIteration(2))
+
+    # First logger
+    logger1 = CallbackAction() do problem, algorithm, state
+        @info "Logger1 Iter $(state.iteration)"
+    end
+
+    # Second logger
+    logger2 = CallbackAction() do problem, algorithm, state
+        @info "Logger2 Iter $(state.iteration)"
+    end
+
+    group_logger = GroupAction(logger1, logger2)
+
+    # Expect both loggers to log for each iteration
+    @test_logs (:info, "Logger1 Iter 1") (:info, "Logger2 Iter 1") (:info, "Logger1 Iter 2") (:info, "Logger2 Iter 2") begin
+        with_algorithmlogger(:PostStep => group_logger) do
+            solve(problem, algorithm)
+        end
+    end
+end
