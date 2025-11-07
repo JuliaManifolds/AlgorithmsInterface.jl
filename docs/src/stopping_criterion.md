@@ -1,3 +1,7 @@
+```@meta
+CollapsedDocStrings = true
+```
+
 # Stopping criteria
 
 Continuing the square‑root story from the [Interface](@ref sec_interface) page, we now decide **when** the iteration should halt.

@@ -1,3 +1,7 @@
+```@meta
+CollapsedDocStrings = true
+```
+
 # [The algorithm interface](@id sec_interface)
 
 This section starts a single, cohesive story that will weave through all documentation pages.

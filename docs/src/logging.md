@@ -1,3 +1,7 @@
+```@meta
+CollapsedDocStrings = true
+```
+
 # [Logging](@id sec_logging)
 
 In the final part of the square‑root story we instrument the Heron iteration with logging.
