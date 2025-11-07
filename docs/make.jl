@@ -46,10 +46,14 @@ makedocs(;
         "Home" => "index.md",
         "Interface" => "interface.md",
         "Stopping criteria" => "stopping_criterion.md",
+        "Logging" => "logging.md",
         "Notation" => "notation.md",
         "References" => "references.md",
     ],
+    expandfirst = ["interface.md", "stopping_criterion.md"],
     plugins = [bib, links],
+    warnonly = true
+
 )
 deploydocs(; repo = "github.com/JuliaManifolds/AlgorithmsInterface.jl", push_preview = true)
 #back to main env
