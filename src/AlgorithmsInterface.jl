@@ -33,7 +33,7 @@ export StopAfter, StopAfterIteration, StopWhenAll, StopWhenAny
 export is_finished, is_finished!, get_reason, indicates_convergence
 
 # Logging interface
-export LoggingAction, CallbackAction, IfAction, GroupAction
+export LoggingAction, CallbackAction, IfAction, ActionGroup
 export with_algorithmlogger, emit_message
 
 end # module AlgorithmsInterface

@@ -21,18 +21,18 @@ Entry-point for defining an implementation of how to handle a logging event for 
 # Concrete LoggingActions
 # -----------------------
 """
-    GroupAction(actions::LoggingAction...)
-    GroupAction(actions::Vector{<:LoggingAction})
+    ActionGroup(actions::LoggingAction...)
+    ActionGroup(actions::Vector{<:LoggingAction})
 
 Concrete [`LoggingAction`](@ref) that can be used to sequentially perform each of the `actions`.
 """
-struct GroupAction{A <: LoggingAction} <: LoggingAction
+struct ActionGroup{A <: LoggingAction} <: LoggingAction
     actions::Vector{A}
 end
-GroupAction(actions::LoggingAction...) = GroupAction(collect(LoggingAction, actions))
+ActionGroup(actions::LoggingAction...) = ActionGroup(collect(LoggingAction, actions))
 
 function handle_message!(
-        action::GroupAction, problem::Problem, algorithm::Algorithm, state::State; kwargs...
+        action::ActionGroup, problem::Problem, algorithm::Algorithm, state::State; kwargs...
     )
     for child in action.actions
         handle_message!(child, problem, algorithm, state; kwargs...)

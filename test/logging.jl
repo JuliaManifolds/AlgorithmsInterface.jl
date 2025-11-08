@@ -100,7 +100,7 @@ end
     end
 end
 
-@testset "GroupAction logs multiple actions" begin
+@testset "ActionGroup logs multiple actions" begin
     problem = LogDummyProblem()
     algorithm = LogDummyAlgorithm(StopAfterIteration(2))
 
@@ -114,7 +114,7 @@ end
         @info "Logger2 Iter $(state.iteration)"
     end
 
-    group_logger = GroupAction(logger1, logger2)
+    group_logger = ActionGroup(logger1, logger2)
 
     # Expect both loggers to log for each iteration
     @test_logs (:info, "Logger1 Iter 1") (:info, "Logger2 Iter 1") (:info, "Logger1 Iter 2") (:info, "Logger2 Iter 2") begin

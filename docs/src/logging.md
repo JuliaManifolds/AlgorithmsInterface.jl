@@ -226,7 +226,7 @@ history2 = CaptureHistory()
 
 with_algorithmlogger(
     :Start => record_start,
-    :PostStep => GroupAction([iter_printer, history2]),
+    :PostStep => ActionGroup(iter_printer, history2),
     :Stop => CallbackAction() do problem, algorithm, state
         @printf("Captured %d iterates in %.3fs\n", length(history2.iterates), time() - start_time[])
     end,
@@ -473,7 +473,7 @@ Implementing logging involves three main components:
 
 2. **AlgorithmLogger**: Map contexts (`:Start`, `:PostStep`, etc.) to actions.
    - Construct with `with_algorithmlogger(:Context => action, ...)`.
-   - Use `GroupAction` to compose multiple actions at one context.
+   - Use `ActionGroup` to compose multiple actions at one context.
 
 3. **Custom contexts**: Emit domain-specific events from algorithms.
    - Call `emit_message(problem, algorithm, state, :YourContext)`.
