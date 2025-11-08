@@ -37,7 +37,7 @@ function get_reason end
     get_reason(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
 
 Provide a reason in human readable text as to why a [`StoppingCriterion`](@ref) with [`StoppingCriterionState`](@ref) indicated to stop.
-If it does not indicate to stop, this should return an empty string.
+If it does not indicate to stop, this should return `nothing`.
 
 Providing the iteration at which this indicated to stop in the reason would be preferable.
 """
@@ -54,8 +54,7 @@ indicates_convergence(stopping_criterion::StoppingCriterion)
 @doc """
     indicates_convergence(stopping_criterion::StoppingCriterion, ::StoppingCriterionState)
 
-Return whether or not a [`StoppingCriterion`](@ref) indicates convergence
-when it is in [`StoppingCriterionState`](@ref)
+Return whether or not a [`StoppingCriterion`](@ref) indicates convergence when it is in [`StoppingCriterionState`](@ref).
 
 By default this checks whether the [`StoppingCriterion`](@ref) has actually stopped.
 If so it returns whether `stopping_criterion` itself indicates convergence, otherwise it returns `false`,
@@ -237,7 +236,7 @@ Base.:|(s1::StopWhenAny, s2::StopWhenAny) = StopWhenAny(s1.criteria..., s2.crite
 
 A [`StoppingCriterionState`](@ref) that groups multiple [`StoppingCriterionState`](@ref)s
 internally as a tuple.
-This is for example used in combination with [`StopWhenAny`](@ref) and [`StopWhenAny`](@ref)
+This is for example used in combination with [`StopWhenAny`](@ref) and [`StopWhenAll`](@ref)
 
 # Constructor
     GroupStoppingCriterionState(c::Vector{N,StoppingCriterionState} where N)
@@ -275,19 +274,19 @@ function initialize_state(
     )
 end
 function initialize_state!(
-        stopping_criterion_states::GroupStoppingCriterionState,
         problem::Problem,
         algorithm::Algorithm,
-        stop_when::Union{StopWhenAll, StopWhenAny};
+        stop_when::Union{StopWhenAll, StopWhenAny},
+        stopping_criterion_states::GroupStoppingCriterionState;
         kwargs...,
     )
     for (stopping_criterion_state, stopping_criterion) in
         zip(stopping_criterion_states.criteria_states, stop_when.criteria)
         initialize_state!(
-            stopping_criterion_state,
             problem,
             algorithm,
-            stopping_criterion;
+            stopping_criterion,
+            stopping_criterion_state;
             kwargs...,
         )
     end
@@ -441,10 +440,10 @@ end
 initialize_state(::Problem, ::Algorithm, ::StopAfterIteration; kwargs...) =
     DefaultStoppingCriterionState()
 function initialize_state!(
-        stopping_criterion_state::DefaultStoppingCriterionState,
         ::Problem,
         ::Algorithm,
-        ::StopAfterIteration;
+        ::StopAfterIteration,
+        stopping_criterion_state::DefaultStoppingCriterionState;
         kwargs...,
     )
     stopping_criterion_state.at_iteration = -1
@@ -550,10 +549,10 @@ initialize_state(::Problem, ::Algorithm, ::StopAfter; kwargs...) =
     StopAfterTimePeriodState()
 
 function initialize_state!(
-        stopping_criterion_state::DefaultStoppingCriterionState,
         ::Problem,
         ::Algorithm,
-        ::StopAfter;
+        ::StopAfter,
+        stopping_criterion_state::StopAfterTimePeriodState;
         kwargs...,
     )
     stopping_criterion_state.start = Nanosecond(0)
@@ -586,7 +585,7 @@ function is_finished!(
         stop_after_state.start = Nanosecond(time_ns())
         stop_after_state.time = Nanosecond(0)
     else
-        stop_after_state.time = Nanosecond(time_ns()) - stopping_criterion_state.start
+        stop_after_state.time = Nanosecond(time_ns()) - stop_after_state.start
         if k > 0 && (stop_after_state.time > Nanosecond(stop_after.threshold))
             stop_after_state.at_iteration = k
             return true

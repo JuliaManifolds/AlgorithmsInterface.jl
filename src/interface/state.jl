@@ -14,13 +14,13 @@ and provide corresponding `getproperty` and `setproperty!` methods.
 * `iteration` – the current iteration step ``k`` that is is currently performed or was last performed
 * `stopping_criterion_state` – a [`StoppingCriterionState`](@ref) that indicates whether an [`Algorithm`](@ref)
   will stop after this iteration or has stopped.
-* `iterate` the current iterate ``x^{(k)}```.
+* `iterate` the current iterate ``x^{(k)}``.
 
 ## Methods
 
 The following methods should be implemented for a state
 
-* [`increment!](@ref)`(state)`
+* [`increment!`](@ref)(state)
 """
 abstract type State end
 
