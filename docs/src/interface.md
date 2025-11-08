@@ -38,7 +38,9 @@ Our running example is Heron's / Babylonian method for estimating $\sqrt{S}$.
 (see also the concise background on Wikipedia: [Babylonian method (Heron's method)](https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)):
 Starting from an initial guess $x_0$, we may converge to the solution by iterating:
 
-$$x_{k+1} = \frac{1}{2}\left(x_k + \frac{S}{x_k}\right)$$
+```math
+x_{k+1} = \frac{1}{2}\left(x_k + \frac{S}{x_k}\right)
+```
 
 We therefore suggest the following concrete implementations of the abstract types provided by this package:
 They are illustrative; various performance and generality questions will be left unaddressed to keep this example simple.
