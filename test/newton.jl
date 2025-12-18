@@ -25,23 +25,21 @@ end
 
 # Implementing the algorithm
 # --------------------------
-function initialize_state(problem::RootFindingProblem, algorithm::NewtonMethod)
-    scs = initialize_state(problem, algorithm, algorithm.stopping_criterion)
-    return NewtonState(0, 1.0, scs) # hardcode initial guess to 1.0
+function initialize_state(
+        problem::RootFindingProblem, algorithm::NewtonMethod,
+        stopping_criterion_state::StoppingCriterionState;
+        kwargs...
+    )
+    iteration = 0
+    iterate = 1.0 # hardcode initial guess to 1.0
+    return NewtonState(iteration, iterate, stopping_criterion_state)
 end
+
 function initialize_state!(
-        problem::RootFindingProblem,
-        algorithm::NewtonMethod,
-        state::NewtonState,
+        problem::RootFindingProblem, algorithm::NewtonMethod, state::NewtonState;
+        kwargs...
     )
     state.iteration = 0
-    state.iterate = 1.0
-    initialize_state!(
-        problem,
-        algorithm,
-        algorithm.stopping_criterion,
-        state.stopping_criterion_state,
-    )
     return state
 end
 
