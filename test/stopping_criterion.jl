@@ -5,10 +5,19 @@ using Dates
 struct DummyAlgorithm <: Algorithm
     stopping_criterion::StoppingCriterion
 end
+
 struct DummyProblem <: Problem end
+
 mutable struct DummyState{S <: StoppingCriterionState} <: State
     stopping_criterion_state::S
     iteration::Int
+end
+
+function AlgorithmsInterface.initialize_state(
+        problem::DummyProblem, algorithm::DummyAlgorithm, stopping_criterion_state::StoppingCriterionState;
+        kwargs...
+    )
+    return DummyState(stopping_criterion_state, 1)
 end
 
 problem = DummyProblem()
@@ -19,11 +28,10 @@ problem = DummyProblem()
     @test string(s1) == "StopAfterIteration(2)"
 
     algorithm = DummyAlgorithm(s1)
-    s1_state = initialize_state(problem, algorithm, s1)
-    state_finished = DummyState(s1_state, 2)
-    state_not_finished = DummyState(s1_state, 1)
-    @test is_finished(problem, algorithm, state_finished)
-    @test !is_finished(problem, algorithm, state_not_finished)
+    state = initialize_state(problem, algorithm)
+    @test !is_finished(problem, algorithm, state)
+    AlgorithmsInterface.increment!(state)
+    @test is_finished(problem, algorithm, state)
 end
 
 @testset "StopAfter" begin
@@ -32,11 +40,10 @@ end
     @test string(s1) == "StopAfter(Second(1))"
 
     algorithm = DummyAlgorithm(s1)
-    s1_state = initialize_state(problem, algorithm, s1)
-    state_not_finished = DummyState(s1_state, 1)
-    @test !is_finished(problem, algorithm, state_not_finished)
-    s1_state.time = Second(2)
-    @test is_finished(problem, algorithm, state_not_finished)
+    state = initialize_state(problem, algorithm)
+    @test !is_finished(problem, algorithm, state)
+    state.stopping_criterion_state.time = Second(2)
+    @test is_finished(problem, algorithm, state)
 end
 
 @testset "StopWhenAll" begin
@@ -46,13 +53,12 @@ end
         "StopWhenAll with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
 
     algorithm = DummyAlgorithm(s1)
-    s1_state = initialize_state(problem, algorithm, s1)
-    state_not_finished = DummyState(s1_state, 1)
-    @test !is_finished(problem, algorithm, state_not_finished)
-    s1_state.criteria_states[2].time = Second(2)
-    @test !is_finished(problem, algorithm, state_not_finished)
-    state_not_finished.iteration = 2
-    @test is_finished(problem, algorithm, state_not_finished)
+    state = initialize_state(problem, algorithm)
+    @test !is_finished(problem, algorithm, state)
+    state.stopping_criterion_state.criteria_states[2].time = Second(2)
+    @test !is_finished(problem, algorithm, state)
+    AlgorithmsInterface.increment!(state)
+    @test is_finished(problem, algorithm, state)
 end
 
 @testset "StopWhenAny" begin
@@ -62,11 +68,10 @@ end
         "StopWhenAny with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
 
     algorithm = DummyAlgorithm(s1)
-    s1_state = initialize_state(problem, algorithm, s1)
-    state_not_finished = DummyState(s1_state, 1)
-    @test !is_finished(problem, algorithm, state_not_finished)
-    s1_state.criteria_states[2].time = Second(2)
-    @test is_finished(problem, algorithm, state_not_finished)
-    state_not_finished.iteration = 2
-    @test is_finished(problem, algorithm, state_not_finished)
+    state = initialize_state(problem, algorithm)
+    @test !is_finished(problem, algorithm, state)
+    state.stopping_criterion_state.criteria_states[2].time = Second(2)
+    @test is_finished(problem, algorithm, state)
+    AlgorithmsInterface.increment!(state)
+    @test is_finished(problem, algorithm, state)
 end

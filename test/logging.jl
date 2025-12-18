@@ -13,27 +13,26 @@ mutable struct LogDummyState{S <: StoppingCriterionState} <: State
 end
 
 # State initialization for the dummy algorithm
-function AlgorithmsInterface.initialize_state(problem::LogDummyProblem, algorithm::LogDummyAlgorithm; kwargs...)
-    sc_state = initialize_state(problem, algorithm, algorithm.stopping_criterion; kwargs...)
-    return LogDummyState(0.0, 0, sc_state)
-end
-function AlgorithmsInterface.initialize_state!(
-        problem::LogDummyProblem,
-        algorithm::LogDummyAlgorithm,
-        state::LogDummyState;
+function AlgorithmsInterface.initialize_state(
+        problem::LogDummyProblem, algorithm::LogDummyAlgorithm,
+        stopping_criterion_state::StoppingCriterionState;
         kwargs...
     )
-    initialize_state!(problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state; kwargs...)
-    state.iterate = 0.0
+    iteration = 0
+    iterate = 0.0 # hardcode initial guess to 0.0
+    return LogDummyState(iterate, iteration, stopping_criterion_state)
+end
+function AlgorithmsInterface.initialize_state!(
+        problem::LogDummyProblem, algorithm::LogDummyAlgorithm, state::LogDummyState;
+        kwargs...
+    )
     state.iteration = 0
     return state
 end
 
 # One trivial step per iteration (not relevant for the logging test)
 function AlgorithmsInterface.step!(
-        ::LogDummyProblem,
-        ::LogDummyAlgorithm,
-        state::LogDummyState,
+        ::LogDummyProblem, ::LogDummyAlgorithm, state::LogDummyState,
     )
     state.iterate += 1.0
     return state
