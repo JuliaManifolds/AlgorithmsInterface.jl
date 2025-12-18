@@ -15,6 +15,7 @@ using ScopedValues
 include("interface/algorithm.jl")
 include("interface/problem.jl")
 include("interface/state.jl")
+include("interface/stopping.jl")
 include("interface/interface.jl")
 
 include("stopping_criterion.jl")
