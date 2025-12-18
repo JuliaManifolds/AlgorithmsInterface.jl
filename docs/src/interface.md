@@ -83,7 +83,7 @@ function AlgorithmsInterface.initialize_state(
     )
     x0 = rand()
     iteration = 0
-    return HeronState(x0, 0, stopping_criterion_state)
+    return HeronState(x0, iteration, stopping_criterion_state)
 end
 
 function AlgorithmsInterface.initialize_state!(
