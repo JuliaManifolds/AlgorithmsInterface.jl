@@ -67,7 +67,7 @@ end
 
 ### Initialization
 
-In order to start implementing the core parts of our algorithm, we start at the very beginning.
+In order to begin implementing the core parts of our algorithm, we start at the very beginning.
 There are two main entry points provided by the interface:
 
 - [`initialize_state`](@ref) constructs an entirely new state for the algorithm
@@ -76,21 +76,21 @@ There are two main entry points provided by the interface:
 An example implementation might look like:
 
 ```@example Heron
-function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
-    x0 = rand() # random initial guess
-    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
+function AlgorithmsInterface.initialize_state(
+        problem::SqrtProblem, algorithm::HeronAlgorithm,
+        stopping_criterion_state::StoppingCriterionState;
+        kwargs...
+    )
+    x0 = rand()
+    iteration = 0
     return HeronState(x0, 0, stopping_criterion_state)
 end
 
-function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
-    # reset the state for the algorithm
-    state.iterate = rand()
-    state.iteration = 0
-    
-    # reset the state for the stopping criterion
-    state = AlgorithmsInterface.initialize_state!(
-        problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state
+function AlgorithmsInterface.initialize_state!(
+        problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState;
+        kwargs...
     )
+    state.iteration = 0
     return state
 end
 ```
@@ -171,6 +171,15 @@ Private = true
 ```@autodocs
 Modules = [AlgorithmsInterface]
 Pages = ["interface/state.jl"]
+Order = [:type, :function]
+Private = true
+```
+
+### Stopping Criteria
+
+```@autodocs
+Modules = [AlgorithmsInterface]
+Pages = ["interface/stopping.jl"]
 Order = [:type, :function]
 Private = true
 ```

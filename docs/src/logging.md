@@ -52,16 +52,21 @@ mutable struct HeronState <: State
     stopping_criterion_state
 end
 
-function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
+function AlgorithmsInterface.initialize_state(
+        problem::SqrtProblem, algorithm::HeronAlgorithm,
+        stopping_criterion_state::StoppingCriterionState;
+        kwargs...
+    )
     x0 = rand()
-    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
+    iteration = 0
     return HeronState(x0, 0, stopping_criterion_state)
 end
 
-function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
-    state.iterate = rand()
+function AlgorithmsInterface.initialize_state!(
+        problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState;
+        kwargs...
+    )
     state.iteration = 0
-    initialize_state!(problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state)
     return state
 end
 
