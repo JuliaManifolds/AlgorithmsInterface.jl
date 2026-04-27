@@ -49,24 +49,7 @@ function solve(problem::Problem, algorithm::Algorithm; kwargs...)
     state = initialize_state(problem, algorithm; kwargs...)
     emit_message(logger, problem, algorithm, state, :Start)
 
-    # main body of the algorithm
-    while !is_finished!(problem, algorithm, state)
-        # logging event between convergence check and algorithm step
-        emit_message(logger, problem, algorithm, state, :PreStep)
-
-        # algorithm step
-        increment!(state)
-        step!(problem, algorithm, state)
-
-        # logging event between algorithm step and convergence check
-        emit_message(logger, problem, algorithm, state, :PostStep)
-    end
-
-    # emit message about finished state
-    output = finalize_state!(problem, algorithm, state)
-    emit_message(logger, problem, algorithm, state, :Stop)
-
-    return output
+    return _solve_body!(problem, algorithm, state, logger)
 end
 
 @doc """
@@ -87,6 +70,10 @@ function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
     initialize_state!(problem, algorithm, state; kwargs...)
     emit_message(logger, problem, algorithm, state, :Start)
 
+    return _solve_body!(problem, algorithm, state, logger)
+end
+
+function _solve_body!(problem::Problem, algorithm::Algorithm, state::State, logger)
     # main body of the algorithm
     while !is_finished!(problem, algorithm, state)
         # logging event between convergence check and algorithm step
