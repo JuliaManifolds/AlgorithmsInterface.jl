@@ -52,10 +52,9 @@ function solve(problem::Problem, algorithm::Algorithm; kwargs...)
     state = solve_loop!(problem, algorithm, state)
 
     # emit message about finished state
-    output = finalize_state!(problem, algorithm, state)
     emit_message(logger, problem, algorithm, state, :Stop)
 
-    return output
+    return finalize_state!(problem, algorithm, state)
 end
 
 @doc """
@@ -79,10 +78,9 @@ function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
     state = solve_loop!(problem, algorithm, state)
 
     # emit message about finished state
-    output = finalize_state!(problem, algorithm, state)
     emit_message(logger, problem, algorithm, state, :Stop)
 
-    return output
+    return finalize_state!(problem, algorithm, state)
 end
 
 """
