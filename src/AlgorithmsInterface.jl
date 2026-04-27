@@ -23,6 +23,7 @@ include("logging.jl")
 # general interface
 export Algorithm, Problem, State
 export initialize_state, initialize_state!
+export finalize_state!
 
 export step!, solve, solve!
 

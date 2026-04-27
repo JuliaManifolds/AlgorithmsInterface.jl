@@ -17,6 +17,16 @@ function initialize_state! end
 @doc "$(_doc_init_state)"
 initialize_state!(::Problem, ::Algorithm, ::State; kwargs...)
 
+
+"""
+    output = finalize_state!(problem::Problem, algorithm::Algorithm, state::State)
+
+Finalize the solver and decide what values get returned from the [`solve!`](@ref) call.
+By default, this is a no-op and returns the `state`, but this allows for customization
+in cases where the details of the `state` can remain hidden.
+"""
+finalize_state!(problem::Problem, algorithm::Algorithm, state::State) = state
+
 # has to be defined before used in solve but is documented alphabetically after
 
 @doc """
@@ -66,9 +76,10 @@ function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
     end
 
     # emit message about finished state
+    output = finalize_state!(problem, algorithm, state)
     emit_message(logger, problem, algorithm, state, :Stop)
 
-    return state
+    return output
 end
 
 function step! end
