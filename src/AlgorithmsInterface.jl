@@ -25,7 +25,7 @@ export Algorithm, Problem, State
 export initialize_state, initialize_state!
 export finalize_state!
 
-export step!, solve, solve!
+export step!, solve, solve!, solve_loop!
 
 # stopping criteria
 export StoppingCriterion, StoppingCriterionState
