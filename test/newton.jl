@@ -60,9 +60,9 @@ end
     problem = RootFindingProblem(x -> f(x, a), x -> df(x, a))
     algorithm1 = NewtonMethod(StopAfterIteration(8))
     solution1 = solve(problem, algorithm1)
-    @test solution1.iterate ≈ sqrt(a)
+    @test solution1 ≈ sqrt(a)
     algorithm2 = NewtonMethod(StopAfterIteration(10))
     solution2 = solve(problem, algorithm2)
-    @test solution2.iterate ≈ sqrt(a)
-    @test abs(solution2.iterate - sqrt(a)) < abs(solution1.iterate - sqrt(a))
+    @test solution2 ≈ sqrt(a)
+    @test abs(solution2 - sqrt(a)) < abs(solution1 - sqrt(a))
 end

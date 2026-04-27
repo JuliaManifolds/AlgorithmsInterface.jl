@@ -22,10 +22,10 @@ initialize_state!(::Problem, ::Algorithm, ::State; kwargs...)
     output = finalize_state!(problem::Problem, algorithm::Algorithm, state::State)
 
 Finalize the solver and decide what values get returned from the [`solve!`](@ref) call.
-By default, this is a no-op and returns the `state`, but this allows for customization
-in cases where the details of the `state` can remain hidden.
+By default, this is a no-op and returns the `state.iterate`, but this allows for further
+customization in other cases, for example to clean up used resources or output other data.
 """
-finalize_state!(problem::Problem, algorithm::Algorithm, state::State) = state
+finalize_state!(problem::Problem, algorithm::Algorithm, state::State) = state.iterate
 
 # has to be defined before used in solve but is documented alphabetically after
 

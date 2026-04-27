@@ -128,13 +128,14 @@ With these definitions in place you can already run (assuming you also choose a 
 function heron_sqrt(x; maxiter = 10)
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(StopAfterIteration(maxiter))
-    state = solve(prob, alg)  # allocates & runs
-    return state.iterate
+    return solve(prob, alg)  # allocates & runs
 end
 
 println("Approximate sqrt: ", heron_sqrt(16.0))
 ```
 
+Note that [`solve`](@ref) will default to returning `state.iterate`.
+If desired, this can be customized by altering [`finalize_state!`](@ref).
 We will refine this example with better halting logic and logging shortly.
 
 ## Reference: Core interface types & functions

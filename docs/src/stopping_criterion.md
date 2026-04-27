@@ -112,8 +112,7 @@ We can again combine everything into a single function, but now make the stoppin
 function heron_sqrt(x; stopping_criterion)
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(stopping_criterion)
-    state = solve(prob, alg)  # allocates & runs
-    return state.iterate, state.iteration
+    return solve(prob, alg)  # allocates & runs
 end
 
 heron_sqrt(2; stopping_criterion = StopAfterIteration(10))

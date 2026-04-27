@@ -75,8 +75,7 @@ end
 function heron_sqrt(x; stopping_criterion = StopAfterIteration(10))
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(stopping_criterion)
-    state = solve(prob, alg)  # allocates & runs
-    return state.iterate
+    return solve(prob, alg)  # allocates & runs
 end
 nothing # hide
 ```
@@ -329,7 +328,7 @@ function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
     
     emit_message(problem, algorithm, state, :Stop)
     
-    return state
+    return finalize_state!(problem, algorithm, state)
 end
 ```
 
