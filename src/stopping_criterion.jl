@@ -464,7 +464,7 @@ function Base.summary(
     )
     has_stopped = (stopping_criterion_state.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return print(io, "Max Iteration $(stop_after_iteration.max_iterations):\t$s")
+    return print(io, "Max Iteration $(stop_after_iteration.max_iterations):    $s")
 end
 
 """
@@ -572,6 +572,6 @@ function Base.summary(
     )
     has_stopped = (stopping_criterion_state.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return print(io, "stopped after $(stop_after.threshold):\t$s")
+    return print(io, "stopped after $(stop_after.threshold):    $s")
 end
 indicates_convergence(stop_after::StopAfter) = false

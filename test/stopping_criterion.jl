@@ -17,12 +17,17 @@ problem = AIT.DummyProblem()
     alg_state = AIT.DummyState(s1_state, 1)
     @test is_finished(problem, algorithm, state_finished)
     @test !is_finished(problem, algorithm, alg_state)
+    # Fake a stop:
+    s1_state.at_iteration = 2
+    @test startswith(get_reason(s1, s1_state), "At iteration 2")
+    @test endswith(summary(s1, s1_state), "    reached")
 end
 
 @testset "StopAfter" begin
     s1 = StopAfter(Second(1))
     @test s1 isa StoppingCriterion
     @test string(s1) == "StopAfter(Second(1))"
+    @test_throws ArgumentError StopAfter(Second(-1))
 
     algorithm = AIT.DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
@@ -30,6 +35,9 @@ end
     @test !is_finished(problem, algorithm, alg_state)
     s1_state.time = Second(2)
     @test is_finished(problem, algorithm, alg_state)
+    s1_state.at_iteration = 2
+    @test startswith(get_reason(s1, s1_state), "After iteration 2")
+    @test endswith(summary(s1, s1_state), "    reached")
 end
 
 @testset "StopWhenAll" begin
