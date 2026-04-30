@@ -1,4 +1,6 @@
 docs/build
-docs/Manifest.toml
-Manifest.toml
 docs/src/changelog.md
+*Manifest.toml
+
+LocalPreferences.toml
+JuliaLocalPreferences.toml
