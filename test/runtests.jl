@@ -1,10 +1,10 @@
-using SafeTestsets
+using SafeTestsets, Test
 
 # these have to be included here to make show tests behave
 using AlgorithmsInterface
 using Dates
 
-@safetestset "AlgorithmsInterface.jl" begin
+@testset "AlgorithmsInterface.jl" begin
     @safetestset "Newton" begin
         include("newton.jl")
     end
