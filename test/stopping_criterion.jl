@@ -13,8 +13,8 @@ problem = AIT.DummyProblem()
     algorithm = AIT.DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
     @test !indicates_convergence(s1, s1_state)
-    state_finished = AIT.DummyState(s1_state, 2)
-    alg_state = AIT.DummyState(s1_state, 1)
+    state_finished = AIT.DummyState(nothing, s1_state, 2)
+    alg_state = AIT.DummyState(nothing, s1_state, 1)
     @test is_finished(problem, algorithm, state_finished)
     @test !is_finished(problem, algorithm, alg_state)
     # Fake a stop:
@@ -31,7 +31,7 @@ end
 
     algorithm = AIT.DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
-    alg_state = AIT.DummyState(s1_state, 0)
+    alg_state = AIT.DummyState(nothing, s1_state, 0)
     # Iteration 0: Start timer
     @test !is_finished!(problem, algorithm, alg_state)
     @test !is_finished(problem, algorithm, alg_state)
@@ -63,7 +63,7 @@ end
     @test contains(s1_str, "Overall: not reached")
 
     @test isnothing(AlgorithmsInterface.get_reason(s1, s1_state))
-    alg_state = AIT.DummyState(s1_state, 1)
+    alg_state = AIT.DummyState(nothing, s1_state, 1)
     @test !is_finished(problem, algorithm, alg_state)
     # Fake start timer
     s1_state.criteria_states[2].start = Nanosecond(time_ns())
@@ -109,7 +109,7 @@ end
     @test contains(s1_str, "Overall: not reached")
 
     @test isnothing(AlgorithmsInterface.get_reason(s1, s1_state))
-    alg_state = AIT.DummyState(s1_state, 1)
+    alg_state = AIT.DummyState(nothing, s1_state, 1)
     @test !is_finished!(problem, algorithm, alg_state)
     @test !is_finished(problem, algorithm, alg_state)
     s1_state.criteria_states[2].time = Second(2)

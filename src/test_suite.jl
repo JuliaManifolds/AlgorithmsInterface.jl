@@ -10,9 +10,13 @@ using ..AlgorithmsInterface
 struct DummyAlgorithm{S <: AlgorithmsInterface.StoppingCriterion} <: AlgorithmsInterface.Algorithm
     stopping_criterion::S
 end
+
 struct DummyProblem <: AlgorithmsInterface.Problem end
-mutable struct DummyState{S <: AlgorithmsInterface.StoppingCriterionState} <: AlgorithmsInterface.State
+
+mutable struct DummyState{V, S <: AlgorithmsInterface.StoppingCriterionState} <: AlgorithmsInterface.State
+    iterate::V
     stopping_criterion_state::S
     iteration::Int
 end
+
 end

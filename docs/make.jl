@@ -36,8 +36,9 @@ run_on_CI = (get(ENV, "CI", nothing) == "true")
 # Copy and reformat changelog
 
 # (d) add contributing.md and changelog.md to the docs – and link to releases and issues
+const base_repository = "github.com/JuliaManifolds/AlgorithmsInterface.jl"
 
-function add_links(line::String, url::String = "https://github.com/JuliaManifolds/Manopt.jl")
+function add_links(line::String, url::String = "https://$base_repository")
     # replace issues (#XXXX) -> ([#XXXX](url/issue/XXXX))
     while (m = match(r"\(\#([0-9]+)\)", line)) !== nothing
         id = m.captures[1]
@@ -53,7 +54,7 @@ function add_links(line::String, url::String = "https://github.com/JuliaManifold
 end
 
 generated_path = joinpath(@__DIR__, "src")
-base_url = "https://github.com/JuliaManifolds/Manopt.jl/blob/master/"
+base_url = "https://$base_repository/blob/main/"
 isdir(generated_path) || mkdir(generated_path)
 for (md_file, doc_file) in [("Changelog.md", "changelog.md")]
     open(joinpath(generated_path, doc_file), "w") do io
@@ -102,6 +103,6 @@ makedocs(;
     expandfirst = ["interface.md", "stopping_criterion.md"],
     plugins = [bib, links],
 )
-deploydocs(; repo = "github.com/JuliaManifolds/AlgorithmsInterface.jl", push_preview = true)
+deploydocs(; repo = base_repository, push_preview = true)
 #back to main env
 Pkg.activate()
