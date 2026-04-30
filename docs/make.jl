@@ -17,16 +17,61 @@ if "--help" ∈ ARGS
     exit(0)
 end
 
-using Pkg
-Pkg.activate(@__DIR__)
-Pkg.develop(PackageSpec(; path = (@__DIR__) * "/../"))
-Pkg.resolve()
-Pkg.instantiate()
+# if docs is not the current active environment, switch to it
+# (from https://github.com/JuliaIO/HDF5.jl/pull/1020/) 
+if Base.active_project() != joinpath(@__DIR__, "Project.toml")
+    using Pkg
+    Pkg.activate(@__DIR__)
+    Pkg.instantiate()
+end
 
+#
+# Load packages
 using Documenter, DocumenterCitations, DocumenterInterLinks
 using AlgorithmsInterface
 
 run_on_CI = (get(ENV, "CI", nothing) == "true")
+
+#
+# Copy and reformat changelog
+
+# (d) add contributing.md and changelog.md to the docs – and link to releases and issues
+
+function add_links(line::String, url::String = "https://github.com/JuliaManifolds/Manopt.jl")
+    # replace issues (#XXXX) -> ([#XXXX](url/issue/XXXX))
+    while (m = match(r"\(\#([0-9]+)\)", line)) !== nothing
+        id = m.captures[1]
+        line = replace(line, m.match => "([#$id]($url/issues/$id))")
+    end
+    # replace ## [X.Y.Z] -> with a link to the release [X.Y.Z](url/releases/tag/vX.Y.Z)
+    while (m = match(r"\#\# \[([0-9]+.[0-9]+.[0-9]+)\] (.*)", line)) !== nothing
+        tag = m.captures[1]
+        date = m.captures[2]
+        line = replace(line, m.match => "## [$tag]($url/releases/tag/v$tag) ($date)")
+    end
+    return line
+end
+
+generated_path = joinpath(@__DIR__, "src")
+base_url = "https://github.com/JuliaManifolds/Manopt.jl/blob/master/"
+isdir(generated_path) || mkdir(generated_path)
+for (md_file, doc_file) in [("Changelog.md", "changelog.md")]
+    open(joinpath(generated_path, doc_file), "w") do io
+        # Point to source license file
+        println(
+            io,
+            """
+            ```@meta
+            EditURL = "$(base_url)$(md_file)"
+            ```
+            """,
+        )
+        # Write the contents out below the meta block
+        for line in eachline(joinpath(dirname(@__DIR__), md_file))
+            println(io, add_links(line))
+        end
+    end
+end
 
 bib = CitationBibliography(joinpath(@__DIR__, "src", "references.bib"); style = :alpha)
 links = InterLinks()
@@ -47,8 +92,12 @@ makedocs(;
         "Interface" => "interface.md",
         "Stopping criteria" => "stopping_criterion.md",
         "Logging" => "logging.md",
-        "Notation" => "notation.md",
-        "References" => "references.md",
+        "Miscellanea" => [
+            "Internals" => "internals.md",
+            "Notation" => "notation.md",
+            "Changelog" => "changelog.md",
+            "References" => "references.md",
+        ],
     ],
     expandfirst = ["interface.md", "stopping_criterion.md"],
     plugins = [bib, links],

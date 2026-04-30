@@ -68,7 +68,7 @@ function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::
     # reset the state for the algorithm
     state.iterate = rand()
     state.iteration = 0
-    
+
     # reset the state for the stopping criterion
     state = AlgorithmsInterface.initialize_state!(
         problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state
@@ -244,7 +244,7 @@ criterion = StopWhenStable(1e-8)
 heron_sqrt(16.0; stopping_criterion = criterion)
 ```
 
-Note that our work payed off, as we can still compose this stopping criterion with other criteria as well:
+Note that our work payd off, as we can still compose this stopping criterion with other criteria as well:
 
 ```@example Heron
 criterion = StopWhenStable(1e-8) | StopAfterIteration(5)
