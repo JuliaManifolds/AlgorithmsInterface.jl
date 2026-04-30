@@ -1,9 +1,25 @@
 # 🧮 AlgorithmsInterface.jl
 
-`AlgorithmsInterface.jl` is a Julia package to provide a common interface to run iterative tasks.
-**Algorithm** here refers to an iterative sequence of commands, that are run until a certain stopping criterion is met.
+A small, composable interface for iterative algorithms in Julia.
 
 [![docs][docs-dev-img]][docs-dev-url] [![CI][ci-img]][ci-url] [![runic][runic-img]][runic-url] [![codecov][codecov-img]][codecov-url] [![aqua][aqua-img]][aqua-url]
+
+
+## Design
+
+Iterative methods tend to share the same moving parts, which can lead to quite a bit of boilerplate and friction when trying to compose them.
+This package aims to provide abstractions such as the main loop, stopping criteria, and a logging system shared by these methods.
+It does not ship any concrete algorithms; the goal is to provide the tools to build on.
+It does however ship with a useful set of stopping-criterion and logging primitives out of the obx.
+
+The surface is intentionally small.
+The main design goal of the interface is to cleanly separate the implementation of the algorithm itself from the generic tools that surround it.
+Those generic tools, such as stopping, logging and debugging, are written once and then work across every algorithm that adopts the interface.
+
+See the [documentation][docs-dev-url] for the design walk-through, the API reference, and a worked example.
+For background and discussion, see the [initial discussion](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/1).
+
+Note that this package is still in its design phase, and while SemVer is respected, (breaking) changes might still occur as the design takes shape.
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://JuliaManifolds.github.io/AlgorithmsInterface.jl/dev/
@@ -19,31 +35,3 @@
 
 [aqua-img]: https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg
 [aqua-url]: https://github.com/JuliaTesting/Aqua.jl
-
-# Statement of need
-
-A first approach to algorithms is a simple for-loop for a maximum number of iterations.
-Using an interface instead allows to both specify different criteria to stop easily, even in their combination.
-Furthermore a generic interface allows to both “hook into” an algorithm easily as well as combining them.
-
-A common interface for algorithms allows to reuse common code – especially stopping criteria, but especially also logging, debug, recording, and caching capabilities.
-Finally, a common interface also allows to easily combine existing algorithms, hence enhancing interoperability, for example using one algorithm as a sub routine of another one.
-
-# Main features
-
-See the [initial discussion](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/1)
-as well as the [overview on existing things](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/2)
-
-## Further ideas
-
-* generic stopping criteria `<:AbstractStoppingCriterion`
-  * `StopAfterIteration(i)` for example
-* a factory that turns certain keywords like `maxiter=` into stopping criteria
-* still support the `stopping_criterion=` ideas from `Manopt.jl`
-* by default `stop()` from above would check such a stopping criterion
-* generic debug and record functionality – together with hooks even
-
-## Possible extensions
-
-* to `LineSearches.jl`
-*
