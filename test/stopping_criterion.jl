@@ -8,7 +8,7 @@ problem = AIT.DummyProblem()
 @testset "StopAfterIteration" begin
     s1 = StopAfterIteration(2)
     @test s1 isa StoppingCriterion
-    @test repr(s1) == "StopAfterIteration(2)"
+    @test repr(s1; context = :module => @__MODULE__) == "StopAfterIteration(2)"
     @test !indicates_convergence(s1)
     algorithm = AIT.DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
@@ -26,7 +26,7 @@ end
 @testset "StopAfter" begin
     s1 = StopAfter(Nanosecond(7))
     @test s1 isa StoppingCriterion
-    @test string(s1) == "StopAfter(Nanosecond(7))"
+    @test sprint(show, s1; context = :module => @__MODULE__) == "StopAfter(Nanosecond(7))"
     @test_throws ArgumentError StopAfter(Second(-1))
 
     algorithm = AIT.DummyAlgorithm(s1)
@@ -53,7 +53,7 @@ end
     s1b = StopWhenAll([c1, c2])
     @test s1 == s1b
     @test s1 isa StoppingCriterion
-    @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1) ==
+    @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1; context = :module => @__MODULE__) ==
         "StopWhenAll with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Nanosecond(2))"
     algorithm = AIT.DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
@@ -97,7 +97,7 @@ end
     s1 = c1 | c2
     @test s1 isa StoppingCriterion
     @test s1 == StopWhenAny([c1, c2])
-    @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1) ==
+    @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1; context = :module => @__MODULE__) ==
         "StopWhenAny with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
     @test !indicates_convergence(s1)
 
