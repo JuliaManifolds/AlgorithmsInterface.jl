@@ -55,7 +55,7 @@ end
 generated_path = joinpath(@__DIR__, "src")
 base_url = "https://github.com/JuliaManifolds/Manopt.jl/blob/master/"
 isdir(generated_path) || mkdir(generated_path)
-for (md_file, doc_file) in [("Changelog.md", "changelog.md"), ]
+for (md_file, doc_file) in [("Changelog.md", "changelog.md")]
     open(joinpath(generated_path, doc_file), "w") do io
         # Point to source license file
         println(
