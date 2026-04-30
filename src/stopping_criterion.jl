@@ -155,8 +155,8 @@ end
 function Base.show(io::IO, ::MIME"text/plain", stop_when_all::StopWhenAll)
     print(io, "StopWhenAll with the Stopping Criteria:")
     for stopping_criterion in stop_when_all.criteria
-        print(io, "\n     ")
-        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n    ") # increase indent
+        print(io, "\n\t")
+        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n\t") # increase indent
     end
     return nothing
 end
@@ -206,8 +206,8 @@ end
 function Base.show(io::IO, ::MIME"text/plain", stop_when_any::StopWhenAny)
     print(io, "StopWhenAny with the Stopping Criteria:")
     for stopping_criterion in stop_when_any.criteria
-        print(io, "\n     ")
-        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n    ") # increase indent
+        print(io, "\n\t")
+        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n\t") # increase indent
     end
     return nothing
 end
@@ -356,8 +356,8 @@ function Base.summary(
     r = "Stop when _one_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in
         zip(stop_when_any.criteria, stopping_criterion_states.criteria_states)
-        t = replace(summary(stopping_criterion, stopping_criterion_state), "\n" => "\n    ")
-        r = "$(r)    $(t)\n"
+        t = replace(summary(stopping_criterion, stopping_criterion_state), "\n" => "\n\t")
+        r = "$(r)\t$(t)\n"
     end
     return print(io, "$(r)Overall: $(s)")
 end
@@ -370,8 +370,8 @@ function Base.summary(
     r = "Stop when _all_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in
         zip(stop_when_all.criteria, stopping_criterion_states.criteria_states)
-        t = replace(summary(stopping_criterion, stopping_criterion_state), "\n" => "\n    ")
-        r = "$(r)    $(t)\n"
+        t = replace(summary(stopping_criterion, stopping_criterion_state), "\n" => "\n\t")
+        r = "$(r)\t$(t)\n"
     end
     return print(io, "$(r)Overall: $(s)")
 end

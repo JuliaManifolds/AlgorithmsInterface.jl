@@ -54,7 +54,7 @@ end
     @test s1 == s1b
     @test s1 isa StoppingCriterion
     @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1; context = :module => @__MODULE__) ==
-        "StopWhenAll with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Nanosecond(2))"
+        "StopWhenAll with the Stopping Criteria:\n\tStopAfterIteration(2)\n\tStopAfter(Nanosecond(2))"
     algorithm = AIT.DummyAlgorithm(s1)
     s1_state = initialize_state(problem, algorithm, s1)
 
@@ -98,7 +98,7 @@ end
     @test s1 isa StoppingCriterion
     @test s1 == StopWhenAny([c1, c2])
     @test sprint((io, x) -> show(io, MIME"text/plain"(), x), s1; context = :module => @__MODULE__) ==
-        "StopWhenAny with the Stopping Criteria:\n     StopAfterIteration(2)\n     StopAfter(Second(1))"
+        "StopWhenAny with the Stopping Criteria:\n\tStopAfterIteration(2)\n\tStopAfter(Second(1))"
     @test !indicates_convergence(s1)
 
     algorithm = AIT.DummyAlgorithm(s1)
