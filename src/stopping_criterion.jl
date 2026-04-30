@@ -140,14 +140,14 @@ when _all_ of them indicate to stop.
 
 # Constructor
 
-    StopWhenAll(c::NTuple{N, StoppingCriterion} where {N})
+    StopWhenAll(c::AbstractVector{<:StoppingCriterion})
     StopWhenAll(c::StoppingCriterion...)
 """
 struct StopWhenAll{TCriteria <: Tuple} <: StoppingCriterion
     criteria::TCriteria
+    StopWhenAll(c::StoppingCriterion...) = new{typeof(c)}(c)
 end
-StopWhenAll(c::AbstractVector{<:StoppingCriterion}) = StopWhenAll(Tuple(c))
-StopWhenAll(c...) = StopWhenAll(c)
+StopWhenAll(c::AbstractVector{<:StoppingCriterion}) = StopWhenAll(c...)
 function indicates_convergence(stop_when_all::StopWhenAll)
     return any(indicates_convergence, stop_when_all.criteria)
 end
