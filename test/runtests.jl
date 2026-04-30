@@ -4,19 +4,21 @@ using SafeTestsets
 using AlgorithmsInterface
 using Dates
 
-@safetestset "Newton" begin
-    include("newton.jl")
-end
+@safetestset "AlgorithmsInterface.jl" begin
+    @safetestset "Newton" begin
+        include("newton.jl")
+    end
 
-@safetestset "Stopping Criteria" begin
-    include("stopping_criterion.jl")
-end
+    @safetestset "Stopping Criteria" begin
+        include("stopping_criterion.jl")
+    end
 
-@safetestset "Logging Infrastructure" begin
-    include("logging.jl")
-end
+    @safetestset "Logging Infrastructure" begin
+        include("logging.jl")
+    end
 
-@safetestset "Aqua" begin
-    using AlgorithmsInterface, Aqua
-    Aqua.test_all(AlgorithmsInterface)
+    @safetestset "Aqua" begin
+        using AlgorithmsInterface, Aqua
+        Aqua.test_all(AlgorithmsInterface)
+    end
 end

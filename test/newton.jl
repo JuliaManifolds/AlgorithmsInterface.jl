@@ -65,4 +65,7 @@ end
     solution2 = solve(problem, algorithm2)
     @test solution2 ≈ sqrt(a)
     @test abs(solution2 - sqrt(a)) < abs(solution1 - sqrt(a))
+    state3 = initialize_state(problem, algorithm2)
+    solve!(problem, algorithm2, state3)
+    @test state3.iterate == solution2
 end
