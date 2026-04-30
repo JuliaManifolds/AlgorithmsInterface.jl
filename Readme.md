@@ -3,7 +3,7 @@
 `AlgorithmsInterface.jl` is a Julia package to provide a common interface to run iterative tasks.
 **Algorithm** here refers to an iterative sequence of commands, that are run until a certain stopping criterion is met.
 
-[![docs][docs-dev-img]][docs-dev-url] [![CI][ci-img]][ci-url] [![codecov][codecov-img]][codecov-url]
+[![docs][docs-dev-img]][docs-dev-url] [![CI][ci-img]][ci-url] [![runic][runic-img]][runic-url] [![codecov][codecov-img]][codecov-url]
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://JuliaManifolds.github.io/AlgorithmsInterface.jl/dev/
@@ -13,6 +13,9 @@
 
 [ci-img]: https://github.com/JuliaManifolds/AlgorithmsInterface.jl/actions/workflows/ci.yml/badge.svg
 [ci-url]: https://github.com/JuliaManifolds/AlgorithmsInterface.jl/actions/workflows/ci.yml
+
+[runic-img]: https://img.shields.io/badge/code_style-%E1%9A%B1%E1%9A%A2%E1%9A%BE%E1%9B%81%E1%9A%B2-black
+[runic-url]: https://github.com/fredrikekre/Runic.jl
 
 # Statement of need
 
