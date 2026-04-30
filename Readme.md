@@ -31,7 +31,7 @@ Finally, a common interface also allows to easily combine existing algorithms, h
 
 # Main features
 
-See the [intial discussion](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/1)
+See the [initial discussion](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/1)
 as well as the [overview on existing things](https://github.com/JuliaManifolds/AlgorithmsInterface.jl/discussions/2)
 
 ## Further ideas
