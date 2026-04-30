@@ -27,7 +27,7 @@ The package ships several concrete [`StoppingCriterion`](@ref)s:
 
 Each criterion has an associated [`StoppingCriterionState`](@ref) storing dynamic data (iteration when met, elapsed time, etc.).
 
-Recall our [example implementation](@ref sec_heron) for Heron's method, where we we added a `stopping_criterion` to the `Algorithm`, as well as a `stopping_criterion_state` to the `State`.
+Recall our [example implementation](@ref sec_heron) for Heron's method, where we added a `stopping_criterion` to the `Algorithm`, as well as a `stopping_criterion_state` to the `State`.
 
 ```@example Heron
 using AlgorithmsInterface
@@ -134,7 +134,7 @@ criterion = StopAfterIteration(25) | StopAfter(Millisecond(50))  # logical OR
 heron_sqrt(2; stopping_criterion = criterion)
 ```
 
-Conversely, to demand both a minimum iteration quality condition **and** a cap, use `&` (logical AND).
+Conversely, to demand both a minimum iteration count **and** a time cap, use `&` (logical AND).
 
 ```@example Heron
 criterion = StopAfterIteration(25) & StopAfter(Millisecond(50))  # logical AND
@@ -194,30 +194,30 @@ Here, the mutating version alters the `stopping_criterion_state`, and should the
 function AlgorithmsInterface.is_finished!(
         ::Problem, ::Algorithm, state::State, c::StopWhenStable, st::StopWhenStableState
 )
-	k = state.iteration
-	if k == 0
-		st.previous_iterate = state.iterate
-		st.at_iteration = -1
-		return false
-	end
+    k = state.iteration
+    if k == 0
+        st.previous_iterate = state.iterate
+        st.at_iteration = -1
+        return false
+    end
 
-	st.delta = abs(state.iterate - st.previous_iterate)
-	st.previous_iterate = state.iterate
-	if st.delta < c.tol
-		st.at_iteration = k
-		return true
-	end
-	return false
+    st.delta = abs(state.iterate - st.previous_iterate)
+    st.previous_iterate = state.iterate
+    if st.delta < c.tol
+        st.at_iteration = k
+        return true
+    end
+    return false
 end
 
 function AlgorithmsInterface.is_finished(
         ::Problem, ::Algorithm, state::State, c::StopWhenStable, st::StopWhenStableState
 )
-	k = state.iteration
-	k == 0 && return false
+    k = state.iteration
+    k == 0 && return false
 
-	Δ = abs(state.iterate - st.previous_iterate)
-	return Δ < c.tol
+    Δ = abs(state.iterate - st.previous_iterate)
+    return Δ < c.tol
 end
 ```
 
@@ -244,7 +244,7 @@ criterion = StopWhenStable(1e-8)
 heron_sqrt(16.0; stopping_criterion = criterion)
 ```
 
-Note that our work payd off, as we can still compose this stopping criterion with other criteria as well:
+Note that our work paid off, as we can still compose this stopping criterion with other criteria as well:
 
 ```@example Heron
 criterion = StopWhenStable(1e-8) | StopAfterIteration(5)

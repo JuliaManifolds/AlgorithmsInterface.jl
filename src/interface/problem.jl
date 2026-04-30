@@ -11,7 +11,7 @@ For a [gradient descent](https://en.wikipedia.org/wiki/Gradient_descent) algorit
 * a `cost` function ``f: C → ℝ``
 * a gradient function ``$(raw"\operatorname{grad}")f``
 
-The problem then could that these are given in four different forms
+The problem could specify these in four different forms:
 
 * a function `c = cost(x)` and a gradient `d = gradient(x)`
 * a function `c = cost(x)` and an in-place gradient `gradient!(d,x)`

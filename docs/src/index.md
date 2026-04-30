@@ -1,6 +1,6 @@
 # AlgorithmsInterface.jl
 
-Welcome to the Documentation of `AlgorithmsInterface.jl`.
+Welcome to the documentation of `AlgorithmsInterface.jl`.
 
 ```@meta
 CurrentModule = AlgorithmsInterface

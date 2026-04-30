@@ -27,6 +27,7 @@ The interface in this package formalizes those roles with three abstract types:
 * [`Problem`](@ref): immutable, algorithm‑agnostic input data.
 * [`Algorithm`](@ref): immutable configuration and parameters deciding how to iterate.
 * [`State`](@ref): mutable data that evolves (current iterate, caches, counters, diagnostics).
+
 It provides a framework for decomposing iterative methods into small, composable parts:
 concrete `Problem`/`Algorithm`/`State` types have to implement a minimal set of core functionality,
 and this package helps to stitch everything together and provide additional helper functionality such as stopping criteria and logging functionality.
@@ -86,7 +87,7 @@ function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::
     # reset the state for the algorithm
     state.iterate = rand()
     state.iteration = 0
-    
+
     # reset the state for the stopping criterion
     state = AlgorithmsInterface.initialize_state!(
         problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state

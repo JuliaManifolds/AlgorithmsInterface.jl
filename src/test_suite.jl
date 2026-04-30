@@ -2,7 +2,7 @@
     AlgorithmsInterface.Test
 
 The module `AlgorithmsInterface.Test` contains concrete (dummy) instances
-to test prats of the interface.
+to test parts of the interface.
 """
 module Test
 using ..AlgorithmsInterface
