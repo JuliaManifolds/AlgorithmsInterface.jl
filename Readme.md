@@ -10,7 +10,7 @@ A small, composable interface for iterative algorithms in Julia.
 Iterative methods tend to share the same moving parts, which can lead to quite a bit of boilerplate and friction when trying to compose them.
 This package aims to provide abstractions such as the main loop, stopping criteria, and a logging system shared by these methods.
 It does not ship any concrete algorithms; the goal is to provide the tools to build on.
-It does however ship with a useful set of stopping-criterion and logging primitives out of the obx.
+It does however ship with a useful set of stopping-criterion and logging primitives out of the box.
 
 The surface is intentionally small.
 The main design goal of the interface is to cleanly separate the implementation of the algorithm itself from the generic tools that surround it.

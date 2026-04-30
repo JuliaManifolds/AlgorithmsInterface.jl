@@ -20,7 +20,7 @@ problem = AIT.DummyProblem()
     # Fake a stop:
     s1_state.at_iteration = 2
     @test startswith(get_reason(s1, s1_state), "At iteration 2")
-    @test endswith(summary(s1, s1_state), "    reached")
+    @test endswith(summary(s1, s1_state), ": reached")
 end
 
 @testset "StopAfter" begin
@@ -42,7 +42,7 @@ end
     @test is_finished!(problem, algorithm, alg_state)
     @test is_finished(problem, algorithm, alg_state)
     @test startswith(get_reason(s1, s1_state), "After iteration 2")
-    @test endswith(summary(s1, s1_state), "    reached")
+    @test endswith(summary(s1, s1_state), ": reached")
 end
 
 @testset "StopWhenAll" begin

@@ -24,8 +24,8 @@ The logging system aims to achieve these goals by separating the logging logic i
 These parts can be roughly described as *events* and *actions*, where the logging system is responsible for mapping between them.
 Concretely, we have:
 
-* **When do we log?** → an [`with_algorithmlogger`](@ref) to control how to map events to actions.
-* **What happens when we log?** → a [`LoggingAction`](@ref) to determine what to do when an event happens.
+* **When do we log?** → [`with_algorithmlogger`](@ref) controls how events are mapped to actions.
+* **What happens when we log?** → a [`LoggingAction`](@ref) determines what to do when an event happens.
 
 This separation allows users to compose rich behaviors (printing, collecting statistics, plotting) without modifying algorithm code, and lets algorithm authors emit domain‑specific events.
 
@@ -316,18 +316,18 @@ Inside the `solve!` function, logging events are emitted at key points:
 function solve!(problem::Problem, algorithm::Algorithm, state::State; kwargs...)
     initialize_state!(problem, algorithm, state; kwargs...)
     emit_message(problem, algorithm, state, :Start)
-    
+
     while !is_finished!(problem, algorithm, state)
         emit_message(problem, algorithm, state, :PreStep)
-        
+
         increment!(state)
         step!(problem, algorithm, state)
-        
+
         emit_message(problem, algorithm, state, :PostStep)
     end
-    
+
     emit_message(problem, algorithm, state, :Stop)
-    
+
     return finalize_state!(problem, algorithm, state)
 end
 ```
@@ -405,9 +405,9 @@ function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorit
     # Suppose we check for numerical issues
     if !isfinite(state.iterate) || mod(state.iteration, 10) == 0
         emit_message(problem, algorithm, state, :Restart)
-        state.iterate = rand()  # Reset the iterate an try again
+        state.iterate = rand()  # Reset the iterate and try again
     end
-    
+
     # Normal step
     S = problem.S
     x = state.iterate
@@ -438,7 +438,7 @@ nothing # hide
 
 ### Performance considerations
 
-* Logging actions may be fast or slow, since the overhead is only incurred when actually using them.
+* Logging actions can be as fast or slow as needed; the overhead is only incurred when they are actually used.
 * Algorithms should be mindful of emitting events in hot loops. These events incur an overhead similar to accessing a `ScopedValue` (~10-100 ns), even when no logging action is registered.
 * For expensive operations (plotting, I/O), it is often better to collect data during iteration and process afterward.
 * Use `set_global_logging_state!(false)` for production benchmarks.
@@ -466,18 +466,18 @@ When designing custom logging contexts for your algorithms:
 Implementing logging involves three main components:
 
 1. **LoggingAction**: Define what happens when a logging event occurs.
-   - Use `CallbackAction` for quick inline functions.
-   - Implement custom subtypes for reusable, stateful logging.
-   - Implement `handle_message!(action, problem, algorithm, state; kwargs...)`.
+   * Use `CallbackAction` for quick inline functions.
+   * Implement custom subtypes for reusable, stateful logging.
+   * Implement `handle_message!(action, problem, algorithm, state; kwargs...)`.
 
 2. **AlgorithmLogger**: Map contexts (`:Start`, `:PostStep`, etc.) to actions.
-   - Construct with `with_algorithmlogger(:Context => action, ...)`.
-   - Use `ActionGroup` to compose multiple actions at one context.
+   * Construct with `with_algorithmlogger(:Context => action, ...)`.
+   * Use `ActionGroup` to compose multiple actions at one context.
 
 3. **Custom contexts**: Emit domain-specific events from algorithms.
-   - Call `emit_message(problem, algorithm, state, :YourContext)`.
-   - Document custom contexts in your algorithm's documentation.
-   - Use descriptive symbol names.
+   * Call `emit_message(problem, algorithm, state, :YourContext)`.
+   * Document custom contexts in your algorithm's documentation.
+   * Use descriptive symbol names.
 
 The logging system is designed for composability and zero-overhead when disabled, letting you instrument algorithms without compromising performance or code clarity.
 

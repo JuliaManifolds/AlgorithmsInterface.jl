@@ -3,10 +3,9 @@
 
 An abstract type to represent a stopping criterion of an [`Algorithm`](@ref).
 
-A concrete [`StoppingCriterion`](@ref) should also implement a
+A concrete [`StoppingCriterion`](@ref) should also implement an
 [`initialize_state(problem::Problem, algorithm::Algorithm, stopping_criterion::StoppingCriterion; kwargs...)`](@ref) function to create its accompanying
-[`StoppingCriterionState`](@ref).
-as well as the corresponding mutating variant to reset such a [`StoppingCriterionState`](@ref).
+[`StoppingCriterionState`](@ref), as well as the corresponding mutating variant to reset such a [`StoppingCriterionState`](@ref).
 
 It should usually implement
 
@@ -77,7 +76,7 @@ a certain [`State`](@ref). The variant with three arguments by default extracts 
 [`StoppingCriterion`](@ref) and its [`StoppingCriterionState`](@ref) and their actual
 checks are performed in the implementation with five arguments.
 
-The mutating variant does alter the `stopping_criterion_state` and and should only be called
+The mutating variant does alter the `stopping_criterion_state` and should only be called
 once per iteration, the other one merely inspects the current status without mutation.
 """
 
@@ -108,7 +107,8 @@ is_finished!(::Problem, ::Algorithm, ::State, ::StoppingCriterion, ::StoppingCri
     summary(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
 
 Provide a summary of the status of a stopping criterion – its parameters and whether
-it currently indicates to stop.ìo` and generates a string from that.
+it currently indicates to stop. The first variant prints the summary to `io`,
+the second returns it as a string.
 
 # Example
 
@@ -135,13 +135,13 @@ end
 @doc raw"""
     StopWhenAll <: StoppingCriterion
 
-store a tuple of [`StoppingCriterion`](@ref)s and indicate to stop,
-when _all_ indicate to stop.
+Store a tuple of [`StoppingCriterion`](@ref)s and indicate to stop
+when _all_ of them indicate to stop.
 
 # Constructor
 
-    StopWhenAll(c::NTuple{N,StoppingCriterion} where N)
-    StopWhenAll(c::StoppingCriterion,...)
+    StopWhenAll(c::NTuple{N, StoppingCriterion} where {N})
+    StopWhenAll(c::StoppingCriterion...)
 """
 struct StopWhenAll{TCriteria <: Tuple} <: StoppingCriterion
     criteria::TCriteria
@@ -156,7 +156,7 @@ function Base.show(io::IO, ::MIME"text/plain", stop_when_all::StopWhenAll)
     print(io, "StopWhenAll with the Stopping Criteria:")
     for stopping_criterion in stop_when_all.criteria
         print(io, "\n     ")
-        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n    ") #increase indent
+        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n    ") # increase indent
     end
     return nothing
 end
@@ -174,7 +174,7 @@ appended to the list of [`StoppingCriterion`](@ref) within `s1` (or `s2`).
 
 Is the same as
 
-    a = StopWhenAll(StopAfterIteration(200), StopAfter(Minute(1))
+    a = StopWhenAll(StopAfterIteration(200), StopAfter(Minute(1)))
 """
 Base.:&(s1::StoppingCriterion, s2::StoppingCriterion) = StopWhenAll(s1, s2)
 Base.:&(s1::StoppingCriterion, s2::StopWhenAll) = StopWhenAll(s1, s2.criteria...)
@@ -184,20 +184,20 @@ Base.:&(s1::StopWhenAll, s2::StopWhenAll) = StopWhenAll(s1.criteria..., s2.crite
 @doc raw"""
     StopWhenAny <: StoppingCriterion
 
-store an array of [`StoppingCriterion`](@ref) elements and indicates to stop,
+Store a tuple of [`StoppingCriterion`](@ref) elements and indicate to stop
 when _any_ single one indicates to stop. The `reason` is given by the
-concatenation of all reasons (assuming that all non-indicating return `""`).
+concatenation of all reasons (assuming that all non-indicating ones return `nothing`).
 
 # Constructors
 
-    StopWhenAny(c::Vector{N,StoppingCriterion} where N)
+    StopWhenAny(c::AbstractVector{<:StoppingCriterion})
     StopWhenAny(c::StoppingCriterion...)
 """
 struct StopWhenAny{TCriteria <: Tuple} <: StoppingCriterion
     criteria::TCriteria
-    StopWhenAny(c::Vector{<:StoppingCriterion}) = new{typeof(tuple(c...))}(tuple(c...))
     StopWhenAny(c::StoppingCriterion...) = new{typeof(c)}(c)
 end
+StopWhenAny(c::AbstractVector{<:StoppingCriterion}) = StopWhenAny(c...)
 
 function indicates_convergence(stop_when_any::StopWhenAny)
     return all(indicates_convergence, stop_when_any.criteria)
@@ -207,7 +207,7 @@ function Base.show(io::IO, ::MIME"text/plain", stop_when_any::StopWhenAny)
     print(io, "StopWhenAny with the Stopping Criteria:")
     for stopping_criterion in stop_when_any.criteria
         print(io, "\n     ")
-        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n    ") #increase indent
+        replace(io, sprint(show, stopping_criterion; context = io), "\n" => "\n    ") # increase indent
     end
     return nothing
 end
@@ -238,10 +238,10 @@ Base.:|(s1::StopWhenAny, s2::StopWhenAny) = StopWhenAny(s1.criteria..., s2.crite
 
 A [`StoppingCriterionState`](@ref) that groups multiple [`StoppingCriterionState`](@ref)s
 internally as a tuple.
-This is for example used in combination with [`StopWhenAny`](@ref) and [`StopWhenAll`](@ref)
+This is for example used in combination with [`StopWhenAny`](@ref) and [`StopWhenAll`](@ref).
 
 # Constructor
-    GroupStoppingCriterionState(c::Vector{N,StoppingCriterionState} where N)
+
     GroupStoppingCriterionState(c::StoppingCriterionState...)
 """
 mutable struct GroupStoppingCriterionState{TCriteriaStates <: Tuple} <: StoppingCriterionState
@@ -387,29 +387,29 @@ A simple stopping criterion to stop after a maximal number of iterations.
 
 # Fields
 
-* `max_iterations`  stores the maximal iteration number where to stop at
+* `max_iterations` stores the iteration number at which to stop.
 
 # Constructor
 
-    StopAfterIteration(maxIter)
+    StopAfterIteration(max_iterations)
 
-initialize the functor to indicate to stop after `maxIter` iterations.
+Initialize the criterion to indicate stopping after `max_iterations` iterations.
 """
 struct StopAfterIteration <: StoppingCriterion
     max_iterations::Int
 end
 
 """
-DefaultStoppingCriterionState <: StoppingCriterionState
+    DefaultStoppingCriterionState <: StoppingCriterionState
 
 A [`StoppingCriterionState`](@ref) that does not require any information besides
-storing the iteration number when it (last) indicated to stop).
+storing the iteration number at which it (last) indicated to stop.
 
-# Field
-* `at_iteration::Int` store the iteration number this state
-  indicated to stop.
-  * `0` means already at the start it indicated to stop
-  * any negative number means that it did not yet indicate to stop.
+# Fields
+
+* `at_iteration::Int` stores the iteration number at which this state indicated to stop.
+  * `0` means it already indicated to stop at the start.
+  * any negative number means that it has not yet indicated to stop.
 """
 mutable struct DefaultStoppingCriterionState <: StoppingCriterionState
     at_iteration::Int
@@ -464,25 +464,25 @@ function Base.summary(
     )
     has_stopped = (stopping_criterion_state.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return print(io, "Max Iteration $(stop_after_iteration.max_iterations):    $s")
+    return print(io, "Max Iterations ($(stop_after_iteration.max_iterations)): $s")
 end
 
 """
     StopAfter <: StoppingCriterion
 
-store a threshold when to stop looking at the complete runtime. It uses
-`time_ns()` to measure the time and you provide a `Period` as a time limit,
+Stores a threshold for stopping based on the total runtime. It uses
+`time_ns()` to measure the time, and you provide a `Period` as the time limit,
 for example `Minute(15)`.
 
 # Fields
 
-* `threshold` stores the `Period` after which to stop
+* `threshold` stores the `Period` after which to stop.
 
 # Constructor
 
-    StopAfter(t)
+    StopAfter(t::Period)
 
-initialize the stopping criterion to a `Period t` to stop after.
+Initialize the stopping criterion to stop after the `Period` `t` has elapsed.
 """
 struct StopAfter <: StoppingCriterion
     threshold::Period
@@ -502,11 +502,12 @@ end
 A state for stopping criteria that are based on time measurements,
 for example [`StopAfter`](@ref).
 
-* `start` stores the starting time when the algorithm is started, that is a call with `i=0`.
-* `time` stores the elapsed time
-* `at_iteration` indicates at which iteration (including `i=0`) the stopping criterion
-  was fulfilled and is `-1` while it is not fulfilled.
+# Fields
 
+* `start` stores the starting time, recorded when the algorithm is started (the call with `k=0`).
+* `time` stores the elapsed time.
+* `at_iteration` indicates at which iteration (including `k=0`) the stopping criterion
+  was fulfilled, and is `-1` while it is not fulfilled.
 """
 mutable struct StopAfterTimePeriodState <: StoppingCriterionState
     start::Nanosecond
@@ -572,6 +573,6 @@ function Base.summary(
     )
     has_stopped = (stopping_criterion_state.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return print(io, "stopped after $(stop_after.threshold):    $s")
+    return print(io, "stopped after $(stop_after.threshold): $s")
 end
 indicates_convergence(stop_after::StopAfter) = false

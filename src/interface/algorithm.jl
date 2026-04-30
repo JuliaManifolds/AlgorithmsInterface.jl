@@ -3,7 +3,7 @@
 
 An abstract type to represent an algorithm.
 
-A concrete algorithm contains all static parameters that characterise the algorithms.
+A concrete algorithm contains all static parameters that characterise the algorithm.
 Together with a [`Problem`](@ref) an `Algorithm` subtype should be able to initialize
 or reset a [`State`](@ref).
 

@@ -17,7 +17,6 @@ function initialize_state! end
 @doc "$(_doc_init_state)"
 initialize_state!(::Problem, ::Algorithm, ::State; kwargs...)
 
-
 """
     output = finalize_state!(problem::Problem, algorithm::Algorithm, state::State)
 
