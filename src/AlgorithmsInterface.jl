@@ -20,6 +20,8 @@ include("interface/interface.jl")
 include("stopping_criterion.jl")
 include("logging.jl")
 
+include("test_suite.jl")
+
 # general interface
 export Algorithm, Problem, State
 export initialize_state, initialize_state!

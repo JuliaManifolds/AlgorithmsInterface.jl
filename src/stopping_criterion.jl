@@ -54,18 +54,16 @@ indicates_convergence(stopping_criterion::StoppingCriterion)
 @doc """
     indicates_convergence(stopping_criterion::StoppingCriterion, ::StoppingCriterionState)
 
-Return whether or not a [`StoppingCriterion`](@ref) indicates convergence when it is in [`StoppingCriterionState`](@ref).
+Return whether or not a [`StoppingCriterion`](@ref) indicates convergence when it is in [`StoppingCriterionState`](@ref),
+i.e. also check whether the state indicates that the criterion has been active.
 
-By default this checks whether the [`StoppingCriterion`](@ref) has actually stopped.
 If so it returns whether `stopping_criterion` itself indicates convergence, otherwise it returns `false`,
 since the algorithm has then not yet stopped.
 """
 function indicates_convergence(
-        stopping_criterion::StoppingCriterion,
-        stopping_criterion_state::StoppingCriterionState,
+        stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState,
     )
-    return isnothing(get_reason(stopping_criterion, stopping_criterion_state)) &&
-        indicates_convergence(stopping_criterion)
+    return isnothing(get_reason(stopping_criterion, stopping_criterion_state)) && indicates_convergence(stopping_criterion)
 end
 
 _doc_is_finished = """
@@ -86,11 +84,8 @@ once per iteration, the other one merely inspects the current status without mut
 @doc "$(_doc_is_finished)"
 function is_finished(problem::Problem, algorithm::Algorithm, state::State)
     return is_finished(
-        problem,
-        algorithm,
-        state,
-        algorithm.stopping_criterion,
-        state.stopping_criterion_state,
+        problem, algorithm, state,
+        algorithm.stopping_criterion, state.stopping_criterion_state,
     )
 end
 
@@ -100,11 +95,8 @@ is_finished(::Problem, ::Algorithm, ::State, ::StoppingCriterion, ::StoppingCrit
 @doc "$(_doc_is_finished)"
 function is_finished!(problem::Problem, algorithm::Algorithm, state::State)
     return is_finished!(
-        problem,
-        algorithm,
-        state,
-        algorithm.stopping_criterion,
-        state.stopping_criterion_state,
+        problem, algorithm, state,
+        algorithm.stopping_criterion, state.stopping_criterion_state,
     )
 end
 
@@ -115,7 +107,7 @@ is_finished!(::Problem, ::Algorithm, ::State, ::StoppingCriterion, ::StoppingCri
     summary(io::IO, stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
 
 Provide a summary of the status of a stopping criterion – its parameters and whether
-it currently indicates to stop. It should not be longer than one line
+it currently indicates to stop.
 
 # Example
 
