@@ -12,4 +12,5 @@ AlgorithmsInterface = {path = ".."}
 
 [compat]
 Aqua = "0.8"
+ParallelTestRunner = "2.6.3"
 Test = "1.10"
