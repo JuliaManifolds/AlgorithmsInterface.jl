@@ -1,9 +1,83 @@
 using Test
 using AlgorithmsInterface
 using AlgorithmsInterface: Test as AIT
+using AlgorithmsInterface: DefaultStoppingCriterionState
 using Dates
 
 problem = AIT.DummyProblem()
+
+# Helper criteria
+# ---------------
+# `StopAfterIteration` and `StopAfter` both have `indicates_convergence == false`, so neither can
+# exercise the convergence-versus-fallback logic. This one does.
+struct StopWhenConverged <: StoppingCriterion
+    at::Int
+end
+AlgorithmsInterface.initialize_state(::Problem, ::Algorithm, ::StopWhenConverged; kwargs...) =
+    DefaultStoppingCriterionState()
+function AlgorithmsInterface.initialize_state!(
+        ::Problem, ::Algorithm, ::StopWhenConverged,
+        stopping_criterion_state::DefaultStoppingCriterionState; kwargs...,
+    )
+    stopping_criterion_state.at_iteration = -1
+    return stopping_criterion_state
+end
+function AlgorithmsInterface.is_finished(
+        ::Problem, ::Algorithm, state::State,
+        stop_when_converged::StopWhenConverged, ::DefaultStoppingCriterionState,
+    )
+    return state.iteration >= stop_when_converged.at
+end
+function AlgorithmsInterface.is_finished!(
+        ::Problem, ::Algorithm, state::State,
+        stop_when_converged::StopWhenConverged,
+        stopping_criterion_state::DefaultStoppingCriterionState,
+    )
+    k = state.iteration
+    (k == 0) && (stopping_criterion_state.at_iteration = -1)
+    if k >= stop_when_converged.at
+        stopping_criterion_state.at_iteration = k
+        return true
+    end
+    return false
+end
+function AlgorithmsInterface.get_reason(
+        ::StopWhenConverged, stopping_criterion_state::DefaultStoppingCriterionState,
+    )
+    stopping_criterion_state.at_iteration < 0 && return nothing
+    return "Converged at iteration $(stopping_criterion_state.at_iteration).\n"
+end
+AlgorithmsInterface.indicates_convergence(::StopWhenConverged) = true
+
+# Never indicates to stop, but records how many times it was asked, so that short-circuiting
+# inside the meta criteria becomes observable.
+struct CountingCriterion <: StoppingCriterion end
+mutable struct CountingCriterionState <: StoppingCriterionState
+    at_iteration::Int
+    calls::Int
+end
+AlgorithmsInterface.initialize_state(::Problem, ::Algorithm, ::CountingCriterion; kwargs...) =
+    CountingCriterionState(-1, 0)
+function AlgorithmsInterface.initialize_state!(
+        ::Problem, ::Algorithm, ::CountingCriterion,
+        stopping_criterion_state::CountingCriterionState; kwargs...,
+    )
+    stopping_criterion_state.at_iteration = -1
+    stopping_criterion_state.calls = 0
+    return stopping_criterion_state
+end
+AlgorithmsInterface.is_finished(
+    ::Problem, ::Algorithm, ::State, ::CountingCriterion, ::CountingCriterionState
+) = false
+function AlgorithmsInterface.is_finished!(
+        ::Problem, ::Algorithm, ::State, ::CountingCriterion,
+        stopping_criterion_state::CountingCriterionState,
+    )
+    stopping_criterion_state.calls += 1
+    return false
+end
+AlgorithmsInterface.get_reason(::CountingCriterion, ::CountingCriterionState) = nothing
+AlgorithmsInterface.indicates_convergence(::CountingCriterion) = false
 
 @testset "StopAfterIteration" begin
     s1 = StopAfterIteration(2)
@@ -126,4 +200,82 @@ end
     @test s1 | c3 == s2
     @test c1 | (c2 | c3) == s2
     @test s1 | s2 isa StopWhenAny
+end
+
+@testset "indicates_convergence with a state" begin
+    converging = StopWhenConverged(2)
+    fallback = StopAfterIteration(5)
+
+    # A criterion that has not indicated to stop has not converged, whatever it would report
+    # once it does.
+    algorithm = AIT.DummyAlgorithm(converging)
+    scs = initialize_state(problem, algorithm, converging)
+    @test indicates_convergence(converging)
+    @test !indicates_convergence(converging, scs)
+    state = AIT.DummyState(nothing, scs, 1)
+    @test !is_finished!(problem, algorithm, state)
+    @test !indicates_convergence(converging, scs)
+    state.iteration = 2
+    @test is_finished!(problem, algorithm, state)
+    @test indicates_convergence(converging, scs)
+
+    # `tol | maxiter`: the criteria-only variant is unconditionally `false`, because
+    # `indicates_convergence(::StopWhenAny) = all(...)` and the fallback never converges.
+    # The state-aware variant has to distinguish the two ways of stopping.
+    stop_when = converging | fallback
+    @test !indicates_convergence(stop_when)
+
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 0)
+    @test !is_finished!(problem, algorithm, state)
+    @test !indicates_convergence(stop_when, scs)
+
+    state.iteration = 2
+    @test is_finished!(problem, algorithm, state)
+    @test indicates_convergence(stop_when, scs)
+    @test indicates_convergence(converging, scs.criteria_states[1])
+    @test !indicates_convergence(fallback, scs.criteria_states[2])
+
+    # only the fallback triggers -> stopped, but not converged
+    stop_when = StopWhenConverged(100) | fallback
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 0)
+    @test !is_finished!(problem, algorithm, state)
+    state.iteration = 5
+    @test is_finished!(problem, algorithm, state)
+    @test !indicates_convergence(stop_when, scs)
+
+    # and the reason mentions the fallback only -- children that returned `nothing` must not be
+    # rendered as the literal text "nothing"
+    reason = get_reason(stop_when, scs)
+    @test startswith(reason, "At iteration 5")
+    @test !contains(reason, "nothing")
+end
+
+@testset "is_finished! does not short-circuit" begin
+    counter = CountingCriterion()
+
+    # `StopWhenAny`: the first child already indicates to stop
+    stop_when = StopAfterIteration(1) | counter
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 1)
+    @test is_finished!(problem, algorithm, state)
+    @test scs.criteria_states[2].calls == 1
+
+    # `StopWhenAll`: the first child already indicates *not* to stop
+    stop_when = counter & StopAfterIteration(1)
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 1)
+    @test !is_finished!(problem, algorithm, state)
+    @test scs.criteria_states[1].calls == 1
+    @test !is_finished!(problem, algorithm, state)
+    @test scs.criteria_states[1].calls == 2
+
+    # a reset clears the tally again
+    initialize_state!(problem, algorithm, stop_when, scs)
+    @test scs.criteria_states[1].calls == 0
 end

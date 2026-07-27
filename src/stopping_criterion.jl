@@ -62,7 +62,7 @@ since the algorithm has then not yet stopped.
 function indicates_convergence(
         stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState,
     )
-    return isnothing(get_reason(stopping_criterion, stopping_criterion_state)) && indicates_convergence(stopping_criterion)
+    return !isnothing(get_reason(stopping_criterion, stopping_criterion_state)) && indicates_convergence(stopping_criterion)
 end
 
 _doc_is_finished = """
@@ -255,9 +255,35 @@ function get_reason(
         stopping_criterion_states::GroupStoppingCriterionState,
     )
     stopping_criterion_states.at_iteration < 0 && return nothing
-    criteria = stop_when.criteria
-    stopping_criterion_states = stopping_criterion_states.criteria_states
-    return join(Iterators.map(get_reason, criteria, stopping_criterion_states))
+    reasons = Iterators.map(
+        get_reason, stop_when.criteria, stopping_criterion_states.criteria_states
+    )
+    # children that did not indicate to stop return `nothing` and are left out entirely,
+    # since `join` would otherwise render them as the literal text "nothing"
+    return join(Iterators.filter(!isnothing, reasons))
+end
+
+@doc """
+    indicates_convergence(stop_when::Union{StopWhenAll, StopWhenAny}, ::GroupStoppingCriterionState)
+
+Return whether a group of stopping criteria stopped because of convergence.
+
+Unlike the single-argument variant, which can only reason about the criteria themselves, this
+consults the accompanying [`StoppingCriterionState`](@ref)s and therefore only takes the
+children that actually indicated to stop into account. A group indicates convergence as soon as
+*one* of those children does, so a [`StopWhenAny`](@ref) combining a convergence criterion with a
+fallback such as [`StopAfterIteration`](@ref) still reports convergence whenever the convergence
+criterion is what triggered.
+"""
+function indicates_convergence(
+        stop_when::Union{StopWhenAll, StopWhenAny},
+        stopping_criterion_states::GroupStoppingCriterionState,
+    )
+    stopping_criterion_states.at_iteration < 0 && return false
+    return any(
+        st -> indicates_convergence(st[1], st[2]),
+        zip(stop_when.criteria, stopping_criterion_states.criteria_states),
+    )
 end
 
 function initialize_state(
@@ -307,10 +333,14 @@ function is_finished!(
     )
     k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if all(
-            st -> is_finished!(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
-        )
+    # `map` rather than `all`, so that every child is updated exactly once per iteration:
+    # `all` would short-circuit and starve stateful criteria of the current iterate
+    finished = map(
+        stop_when_all.criteria, stopping_criterion_states.criteria_states
+    ) do stopping_criterion, stopping_criterion_state
+        is_finished!(problem, algorithm, state, stopping_criterion, stopping_criterion_state)
+    end
+    if all(finished)
         stopping_criterion_states.at_iteration = k
         return true
     end
@@ -337,10 +367,15 @@ function is_finished!(
     )
     k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if any(
-            st -> is_finished!(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
-        )
+    # `map` rather than `any`, so that every child is updated exactly once per iteration:
+    # `any` would short-circuit and starve stateful criteria of the current iterate, and
+    # leave their `at_iteration` unset even though they did indicate to stop
+    finished = map(
+        stop_when_any.criteria, stopping_criterion_states.criteria_states
+    ) do stopping_criterion, stopping_criterion_state
+        is_finished!(problem, algorithm, state, stopping_criterion, stopping_criterion_state)
+    end
+    if any(finished)
         stopping_criterion_states.at_iteration = k
         return true
     end

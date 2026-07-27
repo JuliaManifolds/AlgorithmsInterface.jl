@@ -232,8 +232,24 @@ function AlgorithmsInterface.get_reason(c::StopWhenStable, st::StopWhenStableSta
     return "The algorithm reached an approximate stable point after $(st.at_iteration) iterations; the change $(st.delta) is less than $(c.tol)."
 end
 
-AlgorithmsInterface.indicates_convergence(c::StopWhenStable, st::StopWhenStableState) = true
+AlgorithmsInterface.indicates_convergence(c::StopWhenStable) = true
 ```
+
+Only the single-argument variant needs to be defined here.
+It answers "would meeting this criterion mean the algorithm converged?", which is a property of the criterion alone.
+The two-argument variant, which additionally answers "*did* it happen?", is derived from it and [`get_reason`](@ref), so implementing `get_reason` correctly is what makes convergence reporting work:
+
+```@example Heron
+criterion = StopWhenStable(1e-8)
+state = AlgorithmsInterface.initialize_state(SqrtProblem(16.0), HeronAlgorithm(criterion), criterion)
+indicates_convergence(criterion), indicates_convergence(criterion, state)
+```
+
+The criterion always *could* indicate convergence, but its fresh state has not yet seen it happen.
+
+This distinction matters most for composed criteria.
+A `StopWhenStable(1e-8) | StopAfterIteration(5)` can stop for either reason, so `indicates_convergence` of the group *without* a state is `false` — the group offers no guarantee.
+Given a state, it reports whether one of the children that actually triggered indicates convergence, which is what lets a caller tell "converged" apart from "ran out of iterations".
 
 ### Convergence in action
 
@@ -260,7 +276,11 @@ Implementing a criterion usually means defining:
 3. `initialize_state` and `initialize_state!` for setup/reset.
 4. `is_finished!` (mutating) and optionally `is_finished` (non‑mutating) variants.
 5. `get_reason` (return `nothing` or a string) for user feedback.
+   Returning `nothing` while the criterion has not triggered is what the two-argument
+   `indicates_convergence` relies on, so it is worth getting right.
 6. `indicates_convergence(::YourCriterion)` to mark if meeting it implies convergence.
+   The `(criterion, criterion_state)` variant is derived from this one and does not need to be
+   defined.
 
 You may also implement `Base.summary(io, criterion, criterion_state)` for compact status reports.
 
