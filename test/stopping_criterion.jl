@@ -163,13 +163,20 @@ end
     @test !is_finished!(problem, algorithm, alg_state)
     @test !is_finished(problem, algorithm, alg_state)
     @test isnothing(get_reason(s1, s1_state))
-    # Fake stop
-    s1_state.time = Nanosecond(9)
+    # The threshold is small enough that any real elapsed time exceeds it
     alg_state.iteration = 2
     @test is_finished!(problem, algorithm, alg_state)
     @test is_finished(problem, algorithm, alg_state)
     @test startswith(get_reason(s1, s1_state), "After iteration 2")
     @test endswith(summary(s1, s1_state), ": reached")
+
+    # The non-mutating variant reads the clock rather than the `time` recorded by the last
+    # `is_finished!`, so a stale recording does not make it report "not finished"
+    s1_state.time = Nanosecond(0)
+    @test is_finished(problem, algorithm, alg_state)
+    # but it may not (re)start the timer either, so it stays quiet before the first iteration
+    alg_state.iteration = 0
+    @test !is_finished(problem, algorithm, alg_state)
 end
 
 @testset "StopWhenAll" begin
@@ -239,7 +246,9 @@ end
     alg_state = AIT.DummyState(nothing, s1_state, 1)
     @test !is_finished!(problem, algorithm, alg_state)
     @test !is_finished(problem, algorithm, alg_state)
-    s1_state.criteria_states[2].time = Second(2)
+    # Fake two seconds of elapsed time by moving the recorded start into the past -- the
+    # non-mutating variant derives the elapsed time from the clock, not from `time`
+    s1_state.criteria_states[2].start = Nanosecond(time_ns()) - Nanosecond(Second(2))
     @test is_finished(problem, algorithm, alg_state)
     alg_state.iteration = 2
     @test is_finished(problem, algorithm, alg_state)
@@ -401,4 +410,24 @@ end
     state = AIT.DummyState(nothing, scs, 1)
     @test is_finished!(problem, algorithm, state)
     @test get_reason(stop_when, scs) == "Converged at iteration 1.\n"
+end
+
+@testset "is_finished does not mutate" begin
+    # The non-mutating variant only inspects, so a recorded stop has to survive it -- including
+    # at iteration 0, where the mutating variant does reset.
+    stop_when = StopWhenConverged(2) | StopAfterIteration(5)
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 2)
+
+    @test is_finished!(problem, algorithm, state)
+    at_iteration = scs.at_iteration
+    child_at_iterations = map(cs -> cs.at_iteration, scs.criteria_states)
+    @test at_iteration == 2
+
+    state.iteration = 0
+    is_finished(problem, algorithm, state)
+    @test scs.at_iteration == at_iteration
+    @test map(cs -> cs.at_iteration, scs.criteria_states) == child_at_iterations
+    @test indicates_convergence(stop_when, scs)
 end

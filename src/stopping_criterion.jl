@@ -396,15 +396,12 @@ function is_finished(
         problem::Problem, algorithm::Algorithm, state::State,
         stop_when_all::StopWhenAll, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    k = state.iteration
-    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if all(
-            st -> is_finished(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
-        )
-        return true
-    end
-    return false
+    # short-circuiting is fine here: unlike `is_finished!`, this may not mutate, so there is no
+    # child left starved of an update by not being asked
+    return all(
+        st -> is_finished(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
+    )
 end
 function is_finished!(
         problem::Problem, algorithm::Algorithm, state::State,
@@ -430,15 +427,12 @@ function is_finished(
         problem::Problem, algorithm::Algorithm, state::State,
         stop_when_any::StopWhenAny, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    k = state.iteration
-    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if any(
-            st -> is_finished(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
-        )
-        return true
-    end
-    return false
+    # short-circuiting is fine here: unlike `is_finished!`, this may not mutate, so there is no
+    # child left starved of an update by not being asked
+    return any(
+        st -> is_finished(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
+    )
 end
 function is_finished!(
         problem::Problem, algorithm::Algorithm, state::State,
@@ -650,8 +644,10 @@ function is_finished(
         stop_after::StopAfter, stop_after_state::StopAfterTimePeriodState,
     )
     k = state.iteration
-    # Just check whether the (last recorded) time is beyond the threshold
-    return (k > 0 && (stop_after_state.time > Nanosecond(stop_after.threshold)))
+    # Read the clock rather than the `time` recorded by the last `is_finished!`, so that this
+    # reports on the time elapsed *now*. Only the timer itself may not be (re)started here.
+    (k <= 0 || value(stop_after_state.start) == 0) && return false
+    return (Nanosecond(time_ns()) - stop_after_state.start) > Nanosecond(stop_after.threshold)
 end
 function is_finished!(
         ::Problem, ::Algorithm, state::State,
