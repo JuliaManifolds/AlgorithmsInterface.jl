@@ -179,6 +179,36 @@ function Base.summary(
     return String(take!(io))
 end
 
+@doc """
+    get_active_stopping_criteria(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
+    get_active_stopping_criteria(algorithm::Algorithm, state::State)
+
+Return all `(stopping_criterion, stopping_criterion_state)` pairs that [`indicated_to_stop`](@ref),
+as a vector.
+The variant with two arguments extracts the criterion and its state from `algorithm` and `state`.
+
+Meta criteria such as [`StopWhenAll`](@ref) and [`StopWhenAny`](@ref) are recursed into and do not
+appear themselves, so the result only contains the criteria that actually became active.
+This lets a caller distinguish *why* an algorithm stopped, which is more fine grained than
+[`indicates_convergence`](@ref): stopping because a step size collapsed and stopping because an
+iteration budget ran out both fail to indicate convergence, but usually warrant different action.
+
+The default treats a criterion as a leaf, so a new criterion that itself combines others has to
+implement this to be recursed into.
+"""
+function get_active_stopping_criteria(
+        stopping_criterion::StoppingCriterion,
+        stopping_criterion_state::StoppingCriterionState,
+    )
+    pairs = Tuple{StoppingCriterion, StoppingCriterionState}[]
+    indicated_to_stop(stopping_criterion, stopping_criterion_state) &&
+        push!(pairs, (stopping_criterion, stopping_criterion_state))
+    return pairs
+end
+
+get_active_stopping_criteria(algorithm::Algorithm, state::State) =
+    get_active_stopping_criteria(algorithm.stopping_criterion, state.stopping_criterion_state)
+
 #
 #
 # Meta StoppingCriteria
@@ -363,6 +393,23 @@ function indicates_convergence(
         st -> indicates_convergence(st[1], st[2]),
         zip(stop_when.criteria, stopping_criterion_states.criteria_states),
     )
+end
+
+function get_active_stopping_criteria(
+        stop_when::Union{StopWhenAll, StopWhenAny},
+        stopping_criterion_states::GroupStoppingCriterionState,
+    )
+    pairs = Tuple{StoppingCriterion, StoppingCriterionState}[]
+    # recurse rather than report the group itself: `&` and `|` flatten, but a mixed combination
+    # such as `(c1 | c2) & c3` genuinely nests
+    for (stopping_criterion, stopping_criterion_state) in
+        zip(stop_when.criteria, stopping_criterion_states.criteria_states)
+        append!(
+            pairs,
+            get_active_stopping_criteria(stopping_criterion, stopping_criterion_state),
+        )
+    end
+    return pairs
 end
 
 function initialize_state(

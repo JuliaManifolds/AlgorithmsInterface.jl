@@ -1,7 +1,6 @@
 using Test
 using AlgorithmsInterface
 using AlgorithmsInterface: Test as AIT
-using AlgorithmsInterface: DefaultStoppingCriterionState
 using Dates
 
 problem = AIT.DummyProblem()
@@ -430,4 +429,53 @@ end
     @test scs.at_iteration == at_iteration
     @test map(cs -> cs.at_iteration, scs.criteria_states) == child_at_iterations
     @test indicates_convergence(stop_when, scs)
+end
+
+@testset "get_active_stopping_criteria" begin
+    converging = StopWhenConverged(2)
+    budget = StopAfterIteration(2)
+    # a threshold this small is exceeded by any real elapsed time, so the timer triggers on the
+    # first iteration after it was started
+    timer = StopAfter(Nanosecond(1))
+
+    # `&` and `|` flatten, but a mixed combination genuinely nests, and the recursion has to
+    # report the active leaves rather than the groups
+    stop_when = (converging | budget) & timer
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 0)
+
+    @test isempty(get_active_stopping_criteria(algorithm, state))
+    # iteration 0 starts the timer
+    @test !is_finished!(problem, algorithm, state)
+    state.iteration = 2
+    @test is_finished!(problem, algorithm, state)
+
+    active = get_active_stopping_criteria(algorithm, state)
+    @test map(first, active) == [converging, budget, timer]
+    @test all(((c, cs),) -> indicated_to_stop(c, cs), active)
+    # the groups themselves are recursed into, not reported
+    @test !any(c -> c isa Union{StopWhenAll, StopWhenAny}, map(first, active))
+
+    # only the criteria that did indicate to stop are listed
+    stop_when = StopWhenConverged(100) | budget
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 2)
+    @test is_finished!(problem, algorithm, state)
+    @test map(first, get_active_stopping_criteria(algorithm, state)) == [budget]
+end
+
+@testset "convenience accessors" begin
+    stop_when = StopWhenConverged(2) | StopAfterIteration(5)
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 2)
+    @test is_finished!(problem, algorithm, state)
+
+    @test get_reason(algorithm, state) == get_reason(stop_when, scs)
+    @test indicated_to_stop(algorithm, state) == indicated_to_stop(stop_when, scs)
+    @test indicates_convergence(algorithm, state) == indicates_convergence(stop_when, scs)
+    @test get_active_stopping_criteria(algorithm, state) ==
+        get_active_stopping_criteria(stop_when, scs)
 end
