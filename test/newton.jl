@@ -14,7 +14,6 @@ end
 
 struct NewtonMethod{S} <: Algorithm
     stopping_criterion::S
-    # TODO: logging settings? stopping criterium initialization?
 end
 
 mutable struct NewtonState{S} <: State
