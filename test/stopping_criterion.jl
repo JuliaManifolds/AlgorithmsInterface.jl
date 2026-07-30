@@ -79,6 +79,49 @@ end
 AlgorithmsInterface.get_reason(::CountingCriterion, ::CountingCriterionState) = nothing
 AlgorithmsInterface.indicates_convergence(::CountingCriterion) = false
 
+# Indicates to stop immediately, but implements nothing beyond the bare minimum: no `get_reason`
+# and no `indicates_convergence`, so it exercises the fallbacks for both.
+struct SilentCriterion <: StoppingCriterion end
+AlgorithmsInterface.initialize_state(::Problem, ::Algorithm, ::SilentCriterion; kwargs...) =
+    DefaultStoppingCriterionState()
+function AlgorithmsInterface.initialize_state!(
+        ::Problem, ::Algorithm, ::SilentCriterion,
+        stopping_criterion_state::DefaultStoppingCriterionState; kwargs...,
+    )
+    stopping_criterion_state.at_iteration = -1
+    return stopping_criterion_state
+end
+AlgorithmsInterface.is_finished(
+    ::Problem, ::Algorithm, ::State, ::SilentCriterion, ::DefaultStoppingCriterionState
+) = true
+function AlgorithmsInterface.is_finished!(
+        ::Problem, ::Algorithm, state::State, ::SilentCriterion,
+        stopping_criterion_state::DefaultStoppingCriterionState,
+    )
+    stopping_criterion_state.at_iteration = state.iteration
+    return true
+end
+
+# Records its status somewhere other than `at_iteration`, so it has to override
+# `indicated_to_stop` rather than rely on the default.
+struct UnconventionalCriterion <: StoppingCriterion end
+mutable struct UnconventionalCriterionState <: StoppingCriterionState
+    stopped::Bool
+end
+AlgorithmsInterface.initialize_state(::Problem, ::Algorithm, ::UnconventionalCriterion; kwargs...) =
+    UnconventionalCriterionState(false)
+function AlgorithmsInterface.initialize_state!(
+        ::Problem, ::Algorithm, ::UnconventionalCriterion,
+        stopping_criterion_state::UnconventionalCriterionState; kwargs...,
+    )
+    stopping_criterion_state.stopped = false
+    return stopping_criterion_state
+end
+AlgorithmsInterface.indicated_to_stop(
+    ::UnconventionalCriterion, stopping_criterion_state::UnconventionalCriterionState
+) = stopping_criterion_state.stopped
+AlgorithmsInterface.indicates_convergence(::UnconventionalCriterion) = true
+
 @testset "StopAfterIteration" begin
     s1 = StopAfterIteration(2)
     @test s1 isa StoppingCriterion
@@ -95,6 +138,16 @@ AlgorithmsInterface.indicates_convergence(::CountingCriterion) = false
     s1_state.at_iteration = 2
     @test startswith(get_reason(s1, s1_state), "At iteration 2")
     @test endswith(summary(s1, s1_state), ": reached")
+
+    # `get_reason` and `summary` are both gated on `indicated_to_stop`, so they agree even for
+    # an `at_iteration` below `max_iterations`
+    s2 = StopAfterIteration(10)
+    s2_state = initialize_state(problem, AIT.DummyAlgorithm(s2), s2)
+    @test isnothing(get_reason(s2, s2_state))
+    @test endswith(summary(s2, s2_state), ": not reached")
+    s2_state.at_iteration = 3
+    @test !isnothing(get_reason(s2, s2_state))
+    @test endswith(summary(s2, s2_state), ": reached")
 end
 
 @testset "StopAfter" begin
@@ -278,4 +331,52 @@ end
     # a reset clears the tally again
     initialize_state!(problem, algorithm, stop_when, scs)
     @test scs.criteria_states[1].calls == 0
+end
+
+@testset "indicated_to_stop" begin
+    converging = StopWhenConverged(2)
+    algorithm = AIT.DummyAlgorithm(converging)
+    scs = initialize_state(problem, algorithm, converging)
+    state = AIT.DummyState(nothing, scs, 1)
+
+    @test !indicated_to_stop(converging, scs)
+    @test !is_finished!(problem, algorithm, state)
+    @test !indicated_to_stop(converging, scs)
+    state.iteration = 2
+    @test is_finished!(problem, algorithm, state)
+    @test indicated_to_stop(converging, scs)
+    # a reset clears the record again
+    initialize_state!(problem, algorithm, converging, scs)
+    @test !indicated_to_stop(converging, scs)
+
+    # `at_iteration == 0` counts as having indicated to stop, a negative number does not
+    scs.at_iteration = 0
+    @test indicated_to_stop(converging, scs)
+    scs.at_iteration = -1
+    @test !indicated_to_stop(converging, scs)
+
+    # a state that records its status differently overrides the default
+    unconventional = UnconventionalCriterion()
+    algorithm = AIT.DummyAlgorithm(unconventional)
+    ucs = initialize_state(problem, algorithm, unconventional)
+    @test !indicated_to_stop(unconventional, ucs)
+    @test !indicates_convergence(unconventional, ucs)
+    ucs.stopped = true
+    @test indicated_to_stop(unconventional, ucs)
+    @test indicates_convergence(unconventional, ucs)
+end
+
+@testset "fallbacks for a minimal criterion" begin
+    silent = SilentCriterion()
+    algorithm = AIT.DummyAlgorithm(silent)
+    scs = initialize_state(problem, algorithm, silent)
+    state = AIT.DummyState(nothing, scs, 1)
+
+    @test is_finished!(problem, algorithm, state)
+    @test indicated_to_stop(silent, scs)
+    # neither `get_reason` nor `indicates_convergence` is implemented, and both fall back
+    # conservatively instead of throwing a `MethodError`
+    @test isnothing(get_reason(silent, scs))
+    @test !indicates_convergence(silent)
+    @test !indicates_convergence(silent, scs)
 end

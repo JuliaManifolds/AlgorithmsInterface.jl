@@ -33,7 +33,7 @@ export step!, solve, solve!, solve_loop!
 export StoppingCriterion, StoppingCriterionState
 export StopAfter, StopAfterIteration, StopWhenAll, StopWhenAny
 
-export is_finished, is_finished!, get_reason, indicates_convergence
+export is_finished, is_finished!, get_reason, indicated_to_stop, indicates_convergence
 
 # Logging interface
 export LoggingAction, CallbackAction, IfAction, ActionGroup
