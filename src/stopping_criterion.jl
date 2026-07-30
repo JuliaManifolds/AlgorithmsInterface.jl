@@ -198,6 +198,16 @@ struct StopWhenAll{TCriteria <: Tuple} <: StoppingCriterion
     StopWhenAll(c::StoppingCriterion...) = new{typeof(c)}(c)
 end
 StopWhenAll(c::AbstractVector{<:StoppingCriterion}) = StopWhenAll(c...)
+
+@doc """
+    indicates_convergence(stop_when_all::StopWhenAll)
+
+A [`StopWhenAll`](@ref) indicates convergence whenever *one* of its criteria does.
+
+Since it can only indicate to stop once every one of its criteria does, a single criterion that
+allows to conclude convergence is enough to conclude it for the group as a whole.
+Note how this is the opposite quantifier from [`StopWhenAny`](@ref).
+"""
 function indicates_convergence(stop_when_all::StopWhenAll)
     return any(indicates_convergence, stop_when_all.criteria)
 end
@@ -249,6 +259,19 @@ struct StopWhenAny{TCriteria <: Tuple} <: StoppingCriterion
 end
 StopWhenAny(c::AbstractVector{<:StoppingCriterion}) = StopWhenAny(c...)
 
+@doc """
+    indicates_convergence(stop_when_any::StopWhenAny)
+
+A [`StopWhenAny`](@ref) indicates convergence only when *all* of its criteria do.
+
+Since any single one of its criteria can make it indicate to stop, the group offers no guarantee
+unless every criterion it is composed of allows to conclude convergence on its own.
+Note how this is the opposite quantifier from [`StopWhenAll`](@ref).
+
+This is deliberately pessimistic, and is why a `tolerance | budget` combination is never
+convergent as a criterion. To ask whether a *particular run* stopped because the convergence
+criterion is what triggered, pass the accompanying [`GroupStoppingCriterionState`](@ref) as well.
+"""
 function indicates_convergence(stop_when_any::StopWhenAny)
     return all(indicates_convergence, stop_when_any.criteria)
 end
@@ -304,13 +327,19 @@ function get_reason(
         stop_when::Union{StopWhenAll, StopWhenAny},
         stopping_criterion_states::GroupStoppingCriterionState,
     )
-    stopping_criterion_states.at_iteration < 0 && return nothing
-    reasons = Iterators.map(
-        get_reason, stop_when.criteria, stopping_criterion_states.criteria_states
+    indicated_to_stop(stop_when, stopping_criterion_states) || return nothing
+    # only the children that did indicate to stop have anything to report, and of those the ones
+    # without a message return `nothing`, which `join` would render as the literal text "nothing"
+    reasons = (
+        get_reason(stopping_criterion, stopping_criterion_state) for
+            (stopping_criterion, stopping_criterion_state) in
+            zip(stop_when.criteria, stopping_criterion_states.criteria_states)
+            if indicated_to_stop(stopping_criterion, stopping_criterion_state)
     )
-    # children that did not indicate to stop return `nothing` and are left out entirely,
-    # since `join` would otherwise render them as the literal text "nothing"
-    return join(Iterators.filter(!isnothing, reasons))
+    reason = join(Iterators.filter(!isnothing, reasons))
+    # a group that indicated to stop but collected no message at all has nothing to say either,
+    # and must not report the empty string, which would read as a message to any consumer
+    return isempty(reason) ? nothing : reason
 end
 
 @doc """
@@ -329,7 +358,7 @@ function indicates_convergence(
         stop_when::Union{StopWhenAll, StopWhenAny},
         stopping_criterion_states::GroupStoppingCriterionState,
     )
-    stopping_criterion_states.at_iteration < 0 && return false
+    indicated_to_stop(stop_when, stopping_criterion_states) || return false
     return any(
         st -> indicates_convergence(st[1], st[2]),
         zip(stop_when.criteria, stopping_criterion_states.criteria_states),
@@ -436,7 +465,7 @@ function Base.summary(
         io::IO,
         stop_when_any::StopWhenAny, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    has_stopped = (stopping_criterion_states.at_iteration >= 0)
+    has_stopped = indicated_to_stop(stop_when_any, stopping_criterion_states)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop when _one_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in
@@ -450,7 +479,7 @@ function Base.summary(
         io::IO,
         stop_when_all::StopWhenAll, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    has_stopped = (stopping_criterion_states.at_iteration >= 0)
+    has_stopped = indicated_to_stop(stop_when_all, stopping_criterion_states)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop when _all_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in

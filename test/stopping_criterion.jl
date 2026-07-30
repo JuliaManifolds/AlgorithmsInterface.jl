@@ -380,3 +380,25 @@ end
     @test !indicates_convergence(silent)
     @test !indicates_convergence(silent, scs)
 end
+
+@testset "group get_reason without any message" begin
+    # A group that indicated to stop, but whose only active child has no message, must report
+    # `nothing`: the empty string would read as a message to any consumer.
+    stop_when = StopWhenAny(SilentCriterion())
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 1)
+
+    @test is_finished!(problem, algorithm, state)
+    @test indicated_to_stop(stop_when, scs)
+    @test isnothing(get_reason(stop_when, scs))
+    @test !indicates_convergence(stop_when, scs)
+
+    # mixing in a child with a message reports that message only
+    stop_when = SilentCriterion() | StopWhenConverged(1)
+    algorithm = AIT.DummyAlgorithm(stop_when)
+    scs = initialize_state(problem, algorithm, stop_when)
+    state = AIT.DummyState(nothing, scs, 1)
+    @test is_finished!(problem, algorithm, state)
+    @test get_reason(stop_when, scs) == "Converged at iteration 1.\n"
+end
