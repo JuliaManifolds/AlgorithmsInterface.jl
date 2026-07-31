@@ -136,6 +136,20 @@ nothing # hide
 Furthermore, specific algorithms could emit events for custom contexts too.
 We will come back to this in the section on the [`AlgorithmLogger`](@ref sec_algorithmlogger) design.
 
+### Reporting why we stopped
+
+The `:Stop` context is where the [stopping criterion](@ref sec_stopping) has its say, and [`StopReasonAction`](@ref) is a ready-made action that prints it:
+
+```@example Heron
+with_algorithmlogger(:Stop => StopReasonAction()) do
+    heron_sqrt(2.0)
+end
+nothing # hide
+```
+
+This is a thin wrapper around [`get_reason`](@ref), so anything that criterion reports shows up here.
+See [querying the verdict](@ref sec_stopping_verdict) for the machine-readable counterparts, which are useful in an [`IfAction`](@ref) predicate — for example to only dump diagnostics on a run that failed to converge.
+
 ### Timing execution
 
 Let's add timing information to see how long each iteration takes:
@@ -467,6 +481,7 @@ Implementing logging involves three main components:
 
 1. **LoggingAction**: Define what happens when a logging event occurs.
    * Use `CallbackAction` for quick inline functions.
+   * Use `StopReasonAction` at `:Stop` to report what made the algorithm stop.
    * Implement custom subtypes for reusable, stateful logging.
    * Implement `handle_message!(action, problem, algorithm, state; kwargs...)`.
 

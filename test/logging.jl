@@ -124,6 +124,26 @@ end
     end
 end
 
+@testset "StopReasonAction reports why the algorithm stopped" begin
+    problem = LogDummyProblem()
+    algorithm = LogDummyAlgorithm(StopAfterIteration(3))
+
+    io = IOBuffer()
+    with_algorithmlogger(:Stop => StopReasonAction(io; prefix = "Stopped: ")) do
+        solve(problem, algorithm)
+    end
+    reason = String(take!(io))
+    @test startswith(reason, "Stopped: At iteration 3")
+
+    # nothing is reported while no criterion has indicated to stop, so registering the action on
+    # another context is harmless
+    io = IOBuffer()
+    with_algorithmlogger(:Start => StopReasonAction(io)) do
+        solve(problem, algorithm)
+    end
+    @test isempty(String(take!(io)))
+end
+
 @testset "Global logging toggle disables all logging" begin
     problem = LogDummyProblem()
     algorithm = LogDummyAlgorithm(StopAfterIteration(3))

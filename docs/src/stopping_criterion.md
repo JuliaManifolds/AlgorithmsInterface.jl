@@ -13,7 +13,7 @@ Decoupling halting from stepping lets us:
 
 * Reuse generic stopping (iteration caps, time limits) across algorithms.
 * Compose multiple conditions (stop after 1 second OR 100 iterations, etc.).
-* Query convergence indication vs. mere forced termination.
+* Query convergence indication vs. mere forced termination, see [querying the verdict](@ref sec_stopping_verdict).
 * Store structured reasons and state (e.g. at which iteration a threshold was met).
 
 
@@ -223,17 +223,84 @@ end
 
 ### Reason and convergence reporting
 
-Finally, we need to implement [`get_reason`](@ref) and [`indicates_convergence`](@ref).
-These helper functions are required to interact with the [logging system](@ref sec_logging), to distinguish between states that are considered ongoing, stopped and converged, or stopped without convergence.
+Finally, we need to say what our criterion reports once it has triggered.
+There are two separate questions here, and keeping them apart is what makes the generic reporting work:
+
+* *Did* this criterion indicate to stop? This is answered by [`is_active`](@ref), and it is what all the generic machinery is built on.
+* Why, in words? This is answered by [`get_reason`](@ref), and it is for human consumption only.
+
+We get the first one for free.
+The default implementation of [`is_active`](@ref) reads the `at_iteration` property of the state, and our `StopWhenStableState` has one, following the convention that a negative value means "has not (yet) indicated to stop".
+Only a state that records its status some other way has to implement [`is_active`](@ref) itself.
+
+That leaves the message, plus the static statement that meeting this criterion *does* mean convergence:
 
 ```@example Heron
 function AlgorithmsInterface.get_reason(c::StopWhenStable, st::StopWhenStableState)
-    (st.at_iteration >= 0 && st.delta < c.tol) || return nothing
-    return "The algorithm reached an approximate stable point after $(st.at_iteration) iterations; the change $(st.delta) is less than $(c.tol)."
+    is_active(c, st) || return nothing
+    return "The algorithm reached an approximate stable point after $(st.at_iteration) iterations; the change $(st.delta) is less than $(c.tol).\n"
 end
 
-AlgorithmsInterface.indicates_convergence(c::StopWhenStable, st::StopWhenStableState) = true
+AlgorithmsInterface.indicates_convergence(::Type{StopWhenStable}) = true
 ```
+
+Note that `get_reason` gates on the *recorded* status rather than re-checking `st.delta < c.tol`.
+Re-checking the predicate would make the message disappear again as soon as the state moves on, whereas `at_iteration` is a permanent record of what happened.
+
+Only the type-domain [`indicates_convergence`](@ref) needs to be defined.
+It answers "would meeting this criterion mean the algorithm converged?", which is a static property of the criterion type alone.
+The variant taking a criterion simply forwards to the type, and the two-argument variant, which additionally answers "*did* it happen?", is derived from it and [`is_active`](@ref):
+
+```@example Heron
+criterion = StopWhenStable(1e-8)
+state = AlgorithmsInterface.initialize_state(SqrtProblem(16.0), HeronAlgorithm(criterion), criterion)
+indicates_convergence(criterion), indicates_convergence(criterion, state)
+```
+
+The criterion always *could* indicate convergence, but its fresh state has not yet seen it happen.
+
+This distinction matters most for composed criteria.
+A `StopWhenStable(1e-8) | StopAfterIteration(5)` can stop for either reason, so `indicates_convergence` of the group *without* a state is `false` since the group offers no guarantee.
+Given a state, it reports whether one of the children that actually triggered indicates convergence, which is what lets a caller tell "converged" apart from "ran out of iterations".
+
+Both `get_reason` and the type-domain `indicates_convergence` have conservative defaults, `nothing` and `false`, so a criterion that has nothing to add does not have to implement them.
+
+### [Querying the verdict](@id sec_stopping_verdict)
+
+After a run, these same functions are how a caller finds out what happened.
+Since [`solve`](@ref) returns only the iterate, we use [`solve!`](@ref) with a state we hold on to:
+
+```@example Heron
+function heron_verdict(x, criterion)
+    problem = SqrtProblem(x)
+    algorithm = HeronAlgorithm(criterion)
+    state = AlgorithmsInterface.initialize_state(problem, algorithm)
+
+    solve!(problem, algorithm, state)
+
+    converged = indicates_convergence(algorithm, state)
+    reason = get_reason(algorithm, state)
+    active = [typeof(c) for (c, cs) in get_active_stopping_criteria(algorithm, state)]
+
+    return converged, reason, active
+end
+
+heron_verdict(16.0, StopWhenStable(1e-8) | StopAfterIteration(50))
+```
+
+These two-argument forms extract the criterion and its state for us, so there is no need to reach into `algorithm.stopping_criterion` and `state.stopping_criterion_state` by hand.
+
+The very same criterion reports a different verdict when the budget is what runs out first:
+
+```@example Heron
+heron_verdict(16.0, StopWhenStable(1e-8) | StopAfterIteration(5))
+```
+
+This is the distinction the whole two-argument machinery exists for.
+Note also that convergence is a coarse verdict: an iteration cap and a collapsed step size both fail to indicate convergence while calling for quite different responses.
+That is what [`get_active_stopping_criteria`](@ref) is for — it reports exactly which criteria became active, recursing through any [`StopWhenAll`](@ref) and [`StopWhenAny`](@ref) so that the groups themselves never show up.
+
+The [logging system](@ref sec_logging) offers [`StopReasonAction`](@ref) to report the reason at the `:Stop` context, without having to hold on to the state at all.
 
 ### Convergence in action
 
@@ -256,13 +323,16 @@ heron_sqrt(16.0; stopping_criterion = criterion)
 Implementing a criterion usually means defining:
 
 1. A subtype of [`StoppingCriterion`](@ref).
-2. A state subtype of [`StoppingCriterionState`](@ref) capturing dynamic fields.
+2. A state subtype of [`StoppingCriterionState`](@ref) capturing dynamic fields, including an `at_iteration` recording when the criterion triggered.
 3. `initialize_state` and `initialize_state!` for setup/reset.
 4. `is_finished!` (mutating) and optionally `is_finished` (non‑mutating) variants.
-5. `get_reason` (return `nothing` or a string) for user feedback.
-6. `indicates_convergence(::YourCriterion)` to mark if meeting it implies convergence.
+5. `get_reason` (return `nothing` or a string) for user feedback, gated on `is_active`.
+6. `indicates_convergence(::Type{YourCriterion})` to mark if meeting it implies convergence.
+   The `(criterion,)` and the `(criterion, criterion_state)` variant are derived from this one and do not need to be defined.
 
-You may also implement `Base.summary(io, criterion, criterion_state)` for compact status reports.
+You may also implement `Base.summary(io, criterion, criterion_state)` for compact status reports,
+and `is_active(criterion, criterion_state)` if your state does not record its status in an
+`at_iteration` property.
 
 ## Reference API
 

@@ -9,10 +9,16 @@ A concrete [`StoppingCriterion`](@ref) should also implement an
 
 It should usually implement
 
-* [`indicates_convergence`](@ref)`(stopping_criterion)`
-* [`indicates_convergence`](@ref)`(stopping_criterion, stopping_criterion_state)`
 * [`is_finished!`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
 * [`is_finished`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
+* [`initialize_state!`](@ref)`(problem, algorithm, stopping_criterion)`
+* [`initialize_state`](@ref)`(problem, algorithm, stopping_criterion)`
+* [`get_reason`](@ref)`(stopping_criterion, stopping_criterion_state)`
+* [`indicates_convergence`](@ref)`(::Type{<:StoppingCriterion})`
+
+Note that only [`indicates_convergence`](@ref) has to be implemented:
+it answers whether meeting this criterion *would* mean convergence, which is a static property of the criterion type alone.
+Both the variant taking a criterion and the one that additionally takes a [`StoppingCriterionState`](@ref), answering whether it *did* happen are derived from it.
 """
 abstract type StoppingCriterion end
 
@@ -22,39 +28,83 @@ abstract type StoppingCriterion end
 An abstract type to represent a stopping criterion state within a [`State`](@ref).
 It represents the concrete state a [`StoppingCriterion`](@ref) is in.
 
-It should usually implement
+## Properties
 
-* [`get_reason`](@ref)`(stopping_criterion, stopping_criterion_state)`
-* [`indicates_convergence`](@ref)`(stopping_criterion, stopping_criterion_state)`
-* [`is_finished!`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
-* [`is_finished`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
+In order for the generic convergence reporting to work, the state should contain the following
+property, and provide corresponding `getproperty` and `setproperty!` methods.
+
+* `at_iteration` – the iteration at which the accompanying [`StoppingCriterion`](@ref) indicated
+  to stop, where `0` means it already indicated to stop at the start and any negative number
+  means that it has not (yet) indicated to stop.
+
+A state that records its status differently can instead implement
+[`is_active`](@ref)`(stopping_criterion, stopping_criterion_state)`.
 """
 abstract type StoppingCriterionState end
 
-function get_reason end
 @doc """
     get_reason(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
+    get_reason(algorithm::Algorithm, state::State)
 
 Provide a reason in human readable text as to why a [`StoppingCriterion`](@ref) with [`StoppingCriterionState`](@ref) indicated to stop.
 If it does not indicate to stop, this should return `nothing`.
+The second variant extracts the criterion and its state from `algorithm` and `state`.
 
 Providing the iteration at which this indicated to stop in the reason would be preferable.
-"""
-get_reason(::StoppingCriterion, ::StoppingCriterionState)
+Reasons are concatenated when several criteria are combined and are printed verbatim, so they
+should end in a newline.
 
-function indicates_convergence end
+This is meant for human consumption only. To decide programmatically whether a criterion
+indicated to stop, use [`is_active`](@ref) instead.
+The default returns `nothing`, so a criterion that has no message to provide does not have to implement this.
+"""
+get_reason(::StoppingCriterion, ::StoppingCriterionState) = nothing
+
+get_reason(algorithm::Algorithm, state::State) =
+    get_reason(algorithm.stopping_criterion, state.stopping_criterion_state)
+
 @doc """
+    is_active(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
+    is_active(algorithm::Algorithm, state::State)
+
+Return whether a [`StoppingCriterion`](@ref) in the given [`StoppingCriterionState`](@ref) is
+active, that is whether it has indicated to stop during the current run.
+The second variant extracts the criterion and its state from `algorithm` and `state`.
+
+This is the machine-readable counterpart of [`get_reason`](@ref) and the predicate the generic convergence reporting is built on.
+The default implementation reads the `at_iteration` property of the state, see [`StoppingCriterionState`](@ref),
+so it only has to be implemented for a state that records its status differently.
+"""
+is_active(
+    ::StoppingCriterion, stopping_criterion_state::StoppingCriterionState
+) = stopping_criterion_state.at_iteration >= 0
+
+is_active(algorithm::Algorithm, state::State) =
+    is_active(algorithm.stopping_criterion, state.stopping_criterion_state)
+
+@doc """
+    indicates_convergence(::Type{<:StoppingCriterion})
     indicates_convergence(stopping_criterion::StoppingCriterion)
 
 Return whether or not a [`StoppingCriterion`](@ref) indicates convergence.
+
+This is a static property of the criterion itself and independent of any run:
+it answers whether meeting this criterion *would* allow to conclude that the algorithm converged.
+Since it does not depend on the values a criterion is configured with, it is answered in the type domain, and a new criterion should implement the variant taking the type.
+The default is `false`, which is the conservative answer for a criterion that makes no such promise,
+for example a budget such as [`StopAfterIteration`](@ref).
 """
-indicates_convergence(stopping_criterion::StoppingCriterion)
+indicates_convergence(::Type{<:StoppingCriterion}) = false
+
+indicates_convergence(stopping_criterion::StoppingCriterion) = indicates_convergence(typeof(stopping_criterion))
 
 @doc """
     indicates_convergence(stopping_criterion::StoppingCriterion, ::StoppingCriterionState)
+    indicates_convergence(algorithm::Algorithm, state::State)
 
 Return whether or not a [`StoppingCriterion`](@ref) indicates convergence when it is in [`StoppingCriterionState`](@ref),
 i.e. also check whether the state indicates that the criterion has been active.
+The second variant extracts the criterion and its state from `algorithm` and `state`.
 
 If so it returns whether `stopping_criterion` itself indicates convergence, otherwise it returns `false`,
 since the algorithm has then not yet stopped.
@@ -62,8 +112,12 @@ since the algorithm has then not yet stopped.
 function indicates_convergence(
         stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState,
     )
-    return isnothing(get_reason(stopping_criterion, stopping_criterion_state)) && indicates_convergence(stopping_criterion)
+    return is_active(stopping_criterion, stopping_criterion_state) &&
+        indicates_convergence(stopping_criterion)
 end
+
+indicates_convergence(algorithm::Algorithm, state::State) =
+    indicates_convergence(algorithm.stopping_criterion, state.stopping_criterion_state)
 
 _doc_is_finished = """
     is_finished(problem::Problem, algorithm::Algorithm, state::State)
@@ -71,13 +125,12 @@ _doc_is_finished = """
     is_finished!(problem::Problem, algorithm::Algorithm, state::State)
     is_finished!(problem::Problem, algorithm::Algorithm, state::State, stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
 
-Indicate whether an [`Algorithm`](@ref) solving [`Problem`](@ref) is finished having reached
-a certain [`State`](@ref). The variant with three arguments by default extracts the
-[`StoppingCriterion`](@ref) and its [`StoppingCriterionState`](@ref) and their actual
-checks are performed in the implementation with five arguments.
+Indicate whether an [`Algorithm`](@ref) solving [`Problem`](@ref) is finished having reached a certain [`State`](@ref).
+The variant with three arguments by default extracts the [`StoppingCriterion`](@ref) and its [`StoppingCriterionState`](@ref)
+and their actual checks are performed in the implementation with five arguments.
 
-The mutating variant does alter the `stopping_criterion_state` and should only be called
-once per iteration, the other one merely inspects the current status without mutation.
+The mutating variant alters the `stopping_criterion_state` and is only called once per iteration,
+the other one merely inspects the current status without mutation.
 """
 
 @doc "$(_doc_is_finished)"
@@ -129,6 +182,36 @@ function Base.summary(
     return String(take!(io))
 end
 
+@doc """
+    get_active_stopping_criteria(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
+    get_active_stopping_criteria(algorithm::Algorithm, state::State)
+
+Return all `(stopping_criterion, stopping_criterion_state)` pairs for which the criterion
+[`is_active`](@ref), as a vector.
+The variant with two arguments extracts the criterion and its state from `algorithm` and `state`.
+
+Meta criteria such as [`StopWhenAll`](@ref) and [`StopWhenAny`](@ref) are recursed into and do not
+appear themselves, so the result only contains the criteria that actually became active.
+This lets a caller distinguish *why* an algorithm stopped, which is more fine grained than
+[`indicates_convergence`](@ref): stopping because a step size collapsed and stopping because an
+iteration budget ran out both fail to indicate convergence, but usually warrant different action.
+
+The default treats a criterion as a leaf, so a new criterion that itself combines others has to
+implement this to be recursed into.
+"""
+function get_active_stopping_criteria(
+        stopping_criterion::StoppingCriterion,
+        stopping_criterion_state::StoppingCriterionState,
+    )
+    pairs = Tuple{StoppingCriterion, StoppingCriterionState}[]
+    is_active(stopping_criterion, stopping_criterion_state) &&
+        push!(pairs, (stopping_criterion, stopping_criterion_state))
+    return pairs
+end
+
+get_active_stopping_criteria(algorithm::Algorithm, state::State) =
+    get_active_stopping_criteria(algorithm.stopping_criterion, state.stopping_criterion_state)
+
 #
 #
 # Meta StoppingCriteria
@@ -148,8 +231,18 @@ struct StopWhenAll{TCriteria <: Tuple} <: StoppingCriterion
     StopWhenAll(c::StoppingCriterion...) = new{typeof(c)}(c)
 end
 StopWhenAll(c::AbstractVector{<:StoppingCriterion}) = StopWhenAll(c...)
-function indicates_convergence(stop_when_all::StopWhenAll)
-    return any(indicates_convergence, stop_when_all.criteria)
+
+@doc """
+    indicates_convergence(::Type{<:StopWhenAll})
+
+A [`StopWhenAll`](@ref) indicates convergence whenever *one* of its criteria does.
+
+Since it can only indicate to stop once every one of its criteria does, a single criterion that
+allows to conclude convergence is enough to conclude it for the group as a whole.
+Note how this is the opposite quantifier from [`StopWhenAny`](@ref).
+"""
+function indicates_convergence(::Type{StopWhenAll{TCriteria}}) where {TCriteria <: Tuple}
+    return any(indicates_convergence, fieldtypes(TCriteria))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", stop_when_all::StopWhenAll)
@@ -199,8 +292,21 @@ struct StopWhenAny{TCriteria <: Tuple} <: StoppingCriterion
 end
 StopWhenAny(c::AbstractVector{<:StoppingCriterion}) = StopWhenAny(c...)
 
-function indicates_convergence(stop_when_any::StopWhenAny)
-    return all(indicates_convergence, stop_when_any.criteria)
+@doc """
+    indicates_convergence(::Type{<:StopWhenAny})
+
+A [`StopWhenAny`](@ref) indicates convergence only when *all* of its criteria do.
+
+Since any single one of its criteria can make it indicate to stop, the group offers no guarantee
+unless every criterion it is composed of allows to conclude convergence on its own.
+Note how this is the opposite quantifier from [`StopWhenAll`](@ref).
+
+This is deliberately pessimistic, and is why a `tolerance | budget` combination is never
+convergent as a criterion. To ask whether a *particular run* stopped because the convergence
+criterion is what triggered, pass the accompanying [`GroupStoppingCriterionState`](@ref) as well.
+"""
+function indicates_convergence(::Type{StopWhenAny{TCriteria}}) where {TCriteria <: Tuple}
+    return all(indicates_convergence, fieldtypes(TCriteria))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", stop_when_any::StopWhenAny)
@@ -254,10 +360,59 @@ function get_reason(
         stop_when::Union{StopWhenAll, StopWhenAny},
         stopping_criterion_states::GroupStoppingCriterionState,
     )
-    stopping_criterion_states.at_iteration < 0 && return nothing
-    criteria = stop_when.criteria
-    stopping_criterion_states = stopping_criterion_states.criteria_states
-    return join(Iterators.map(get_reason, criteria, stopping_criterion_states))
+    is_active(stop_when, stopping_criterion_states) || return nothing
+    # only the children that did indicate to stop have anything to report, and of those the ones
+    # without a message return `nothing`, which `join` would render as the literal text "nothing"
+    reasons = (
+        get_reason(stopping_criterion, stopping_criterion_state) for
+            (stopping_criterion, stopping_criterion_state) in
+            zip(stop_when.criteria, stopping_criterion_states.criteria_states)
+            if is_active(stopping_criterion, stopping_criterion_state)
+    )
+    reason = join(Iterators.filter(!isnothing, reasons))
+    # a group that indicated to stop but collected no message at all has nothing to say either,
+    # and must not report the empty string, which would read as a message to any consumer
+    return isempty(reason) ? nothing : reason
+end
+
+@doc """
+    indicates_convergence(stop_when::Union{StopWhenAll, StopWhenAny}, ::GroupStoppingCriterionState)
+
+Return whether a group of stopping criteria stopped because of convergence.
+
+Unlike the variant without a state, which can only reason about the criteria types themselves, this
+consults the accompanying [`StoppingCriterionState`](@ref)s and therefore only takes the
+children that actually indicated to stop into account. A group indicates convergence as soon as
+*one* of those children does, so a [`StopWhenAny`](@ref) combining a convergence criterion with a
+fallback such as [`StopAfterIteration`](@ref) still reports convergence whenever the convergence
+criterion is what triggered.
+"""
+function indicates_convergence(
+        stop_when::Union{StopWhenAll, StopWhenAny},
+        stopping_criterion_states::GroupStoppingCriterionState,
+    )
+    is_active(stop_when, stopping_criterion_states) || return false
+    return any(
+        st -> indicates_convergence(st[1], st[2]),
+        zip(stop_when.criteria, stopping_criterion_states.criteria_states),
+    )
+end
+
+function get_active_stopping_criteria(
+        stop_when::Union{StopWhenAll, StopWhenAny},
+        stopping_criterion_states::GroupStoppingCriterionState,
+    )
+    pairs = Tuple{StoppingCriterion, StoppingCriterionState}[]
+    # recurse rather than report the group itself: `&` and `|` flatten, but a mixed combination
+    # such as `(c1 | c2) & c3` genuinely nests
+    for (stopping_criterion, stopping_criterion_state) in
+        zip(stop_when.criteria, stopping_criterion_states.criteria_states)
+        append!(
+            pairs,
+            get_active_stopping_criteria(stopping_criterion, stopping_criterion_state),
+        )
+    end
+    return pairs
 end
 
 function initialize_state(
@@ -291,15 +446,12 @@ function is_finished(
         problem::Problem, algorithm::Algorithm, state::State,
         stop_when_all::StopWhenAll, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    k = state.iteration
-    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if all(
-            st -> is_finished(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
-        )
-        return true
-    end
-    return false
+    # short-circuiting is fine here: unlike `is_finished!`, this may not mutate, so there is no
+    # child left starved of an update by not being asked
+    return all(
+        st -> is_finished(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
+    )
 end
 function is_finished!(
         problem::Problem, algorithm::Algorithm, state::State,
@@ -307,10 +459,14 @@ function is_finished!(
     )
     k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if all(
-            st -> is_finished!(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_all.criteria, stopping_criterion_states.criteria_states),
-        )
+    # `map` rather than `all`, so that every child is updated exactly once per iteration:
+    # `all` would short-circuit and starve stateful criteria of the current iterate
+    finished = map(
+        stop_when_all.criteria, stopping_criterion_states.criteria_states
+    ) do stopping_criterion, stopping_criterion_state
+        is_finished!(problem, algorithm, state, stopping_criterion, stopping_criterion_state)
+    end
+    if all(finished)
         stopping_criterion_states.at_iteration = k
         return true
     end
@@ -321,15 +477,12 @@ function is_finished(
         problem::Problem, algorithm::Algorithm, state::State,
         stop_when_any::StopWhenAny, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    k = state.iteration
-    (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if any(
-            st -> is_finished(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
-        )
-        return true
-    end
-    return false
+    # short-circuiting is fine here: unlike `is_finished!`, this may not mutate, so there is no
+    # child left starved of an update by not being asked
+    return any(
+        st -> is_finished(problem, algorithm, state, st[1], st[2]),
+        zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
+    )
 end
 function is_finished!(
         problem::Problem, algorithm::Algorithm, state::State,
@@ -337,10 +490,15 @@ function is_finished!(
     )
     k = state.iteration
     (k == 0) && (stopping_criterion_states.at_iteration = -1) # reset on init
-    if any(
-            st -> is_finished!(problem, algorithm, state, st[1], st[2]),
-            zip(stop_when_any.criteria, stopping_criterion_states.criteria_states),
-        )
+    # `map` rather than `any`, so that every child is updated exactly once per iteration:
+    # `any` would short-circuit and starve stateful criteria of the current iterate, and
+    # leave their `at_iteration` unset even though they did indicate to stop
+    finished = map(
+        stop_when_any.criteria, stopping_criterion_states.criteria_states
+    ) do stopping_criterion, stopping_criterion_state
+        is_finished!(problem, algorithm, state, stopping_criterion, stopping_criterion_state)
+    end
+    if any(finished)
         stopping_criterion_states.at_iteration = k
         return true
     end
@@ -351,7 +509,7 @@ function Base.summary(
         io::IO,
         stop_when_any::StopWhenAny, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    has_stopped = (stopping_criterion_states.at_iteration >= 0)
+    has_stopped = is_active(stop_when_any, stopping_criterion_states)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop when _one_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in
@@ -365,7 +523,7 @@ function Base.summary(
         io::IO,
         stop_when_all::StopWhenAll, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    has_stopped = (stopping_criterion_states.at_iteration >= 0)
+    has_stopped = is_active(stop_when_all, stopping_criterion_states)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop when _all_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in
@@ -451,18 +609,17 @@ function get_reason(
         stop_after_iteration::StopAfterIteration,
         stopping_criterion_state::DefaultStoppingCriterionState,
     )
-    if stopping_criterion_state.at_iteration >= stop_after_iteration.max_iterations
+    if is_active(stop_after_iteration, stopping_criterion_state)
         return "At iteration $(stopping_criterion_state.at_iteration) the algorithm reached its maximal number of iterations ($(stop_after_iteration.max_iterations)).\n"
     end
     return nothing
 end
-indicates_convergence(stop_after_iteration::StopAfterIteration) = false
 function Base.summary(
         io::IO,
         stop_after_iteration::StopAfterIteration,
         stopping_criterion_state::DefaultStoppingCriterionState,
     )
-    has_stopped = (stopping_criterion_state.at_iteration >= 0)
+    has_stopped = is_active(stop_after_iteration, stopping_criterion_state)
     s = has_stopped ? "reached" : "not reached"
     return print(io, "Max Iterations ($(stop_after_iteration.max_iterations)): $s")
 end
@@ -537,8 +694,10 @@ function is_finished(
         stop_after::StopAfter, stop_after_state::StopAfterTimePeriodState,
     )
     k = state.iteration
-    # Just check whether the (last recorded) time is beyond the threshold
-    return (k > 0 && (stop_after_state.time > Nanosecond(stop_after.threshold)))
+    # Read the clock rather than the `time` recorded by the last `is_finished!`, so that this
+    # reports on the time elapsed *now*. Only the timer itself may not be (re)started here.
+    (k <= 0 || value(stop_after_state.start) == 0) && return false
+    return (Nanosecond(time_ns()) - stop_after_state.start) > Nanosecond(stop_after.threshold)
 end
 function is_finished!(
         ::Problem, ::Algorithm, state::State,
@@ -562,7 +721,7 @@ function get_reason(
         stop_after::StopAfter,
         stopping_criterion_state::StopAfterTimePeriodState,
     )
-    if (stopping_criterion_state.at_iteration >= 0)
+    if is_active(stop_after, stopping_criterion_state)
         return "After iteration $(stopping_criterion_state.at_iteration) the algorithm ran for $(floor(stopping_criterion_state.time, typeof(stop_after.threshold))) (threshold: $(stop_after.threshold)).\n"
     end
     return nothing
@@ -571,8 +730,7 @@ function Base.summary(
         io::IO,
         stop_after::StopAfter, stopping_criterion_state::StopAfterTimePeriodState,
     )
-    has_stopped = (stopping_criterion_state.at_iteration >= 0)
+    has_stopped = is_active(stop_after, stopping_criterion_state)
     s = has_stopped ? "reached" : "not reached"
     return print(io, "stopped after $(stop_after.threshold): $s")
 end
-indicates_convergence(stop_after::StopAfter) = false

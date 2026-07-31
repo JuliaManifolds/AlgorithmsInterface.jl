@@ -2,5 +2,8 @@ docs/build
 docs/src/changelog.md
 *Manifest.toml
 
+# ParallelTestRunner logs
+test/test_*.log
+
 LocalPreferences.toml
 JuliaLocalPreferences.toml

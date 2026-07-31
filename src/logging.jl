@@ -84,6 +84,41 @@ function handle_message!(
         nothing
 end
 
+"""
+    StopReasonAction(io::IO = stdout; prefix::String = "")
+
+Concrete [`LoggingAction`](@ref) that reports why an algorithm stopped, by printing
+[`get_reason`](@ref) of its [`StoppingCriterion`](@ref) prefixed by `prefix`.
+
+This is intended for the `:Stop` context:
+
+```julia
+with_algorithmlogger(:Stop => StopReasonAction()) do
+    solve(problem, algorithm)
+end
+```
+
+Nothing is printed while no criterion has indicated to stop, so registering this on another
+context is harmless.
+
+See also [`indicates_convergence`](@ref) to distinguish stopping because of convergence from
+merely running out of budget, and [`get_active_stopping_criteria`](@ref) to inspect which
+criteria became active.
+"""
+struct StopReasonAction <: LoggingAction
+    io::IO
+    prefix::String
+end
+StopReasonAction(io::IO = stdout; prefix::String = "") = StopReasonAction(io, prefix)
+
+function handle_message!(
+        action::StopReasonAction, ::Problem, algorithm::Algorithm, state::State; kwargs...
+    )
+    reason = get_reason(algorithm, state)
+    isnothing(reason) || print(action.io, action.prefix, reason)
+    return nothing
+end
+
 # Algorithm Logger
 # ----------------
 """
