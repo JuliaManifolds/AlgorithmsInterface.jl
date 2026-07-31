@@ -275,12 +275,14 @@ function heron_verdict(x, criterion)
     problem = SqrtProblem(x)
     algorithm = HeronAlgorithm(criterion)
     state = AlgorithmsInterface.initialize_state(problem, algorithm)
+
     solve!(problem, algorithm, state)
-    return (;
-        converged = indicates_convergence(algorithm, state),
-        reason = get_reason(algorithm, state),
-        active = [typeof(c) for (c, cs) in get_active_stopping_criteria(algorithm, state)],
-    )
+
+    converged = indicates_convergence(algorithm, state)
+    reason = get_reason(algorithm, state)
+    active = [typeof(c) for (c, cs) in get_active_stopping_criteria(algorithm, state)]
+
+    return converged, reason, active
 end
 
 heron_verdict(16.0, StopWhenStable(1e-8) | StopAfterIteration(50))
