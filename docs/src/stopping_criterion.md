@@ -241,15 +241,15 @@ function AlgorithmsInterface.get_reason(c::StopWhenStable, st::StopWhenStableSta
     return "The algorithm reached an approximate stable point after $(st.at_iteration) iterations; the change $(st.delta) is less than $(c.tol).\n"
 end
 
-AlgorithmsInterface.indicates_convergence(c::StopWhenStable) = true
+AlgorithmsInterface.indicates_convergence(::Type{StopWhenStable}) = true
 ```
 
 Note that `get_reason` gates on the *recorded* status rather than re-checking `st.delta < c.tol`.
 Re-checking the predicate would make the message disappear again as soon as the state moves on, whereas `at_iteration` is a permanent record of what happened.
 
-Only the single-argument [`indicates_convergence`](@ref) needs to be defined.
-It answers "would meeting this criterion mean the algorithm converged?", which is a property of the criterion alone.
-The two-argument variant, which additionally answers "*did* it happen?", is derived from it and [`indicated_to_stop`](@ref):
+Only the type-domain [`indicates_convergence`](@ref) needs to be defined.
+It answers "would meeting this criterion mean the algorithm converged?", which is a static property of the criterion type alone.
+The variant taking a criterion simply forwards to the type, and the two-argument variant, which additionally answers "*did* it happen?", is derived from it and [`indicated_to_stop`](@ref):
 
 ```@example Heron
 criterion = StopWhenStable(1e-8)
@@ -260,10 +260,10 @@ indicates_convergence(criterion), indicates_convergence(criterion, state)
 The criterion always *could* indicate convergence, but its fresh state has not yet seen it happen.
 
 This distinction matters most for composed criteria.
-A `StopWhenStable(1e-8) | StopAfterIteration(5)` can stop for either reason, so `indicates_convergence` of the group *without* a state is `false` — the group offers no guarantee.
+A `StopWhenStable(1e-8) | StopAfterIteration(5)` can stop for either reason, so `indicates_convergence` of the group *without* a state is `false` since the group offers no guarantee.
 Given a state, it reports whether one of the children that actually triggered indicates convergence, which is what lets a caller tell "converged" apart from "ran out of iterations".
 
-Both `get_reason` and the single-argument `indicates_convergence` have conservative defaults, `nothing` and `false`, so a criterion that has nothing to add does not have to implement them.
+Both `get_reason` and the type-domain `indicates_convergence` have conservative defaults, `nothing` and `false`, so a criterion that has nothing to add does not have to implement them.
 
 ### [Querying the verdict](@id sec_stopping_verdict)
 
@@ -323,15 +323,12 @@ heron_sqrt(16.0; stopping_criterion = criterion)
 Implementing a criterion usually means defining:
 
 1. A subtype of [`StoppingCriterion`](@ref).
-2. A state subtype of [`StoppingCriterionState`](@ref) capturing dynamic fields, including an
-   `at_iteration` recording when the criterion triggered.
+2. A state subtype of [`StoppingCriterionState`](@ref) capturing dynamic fields, including an `at_iteration` recording when the criterion triggered.
 3. `initialize_state` and `initialize_state!` for setup/reset.
 4. `is_finished!` (mutating) and optionally `is_finished` (non‑mutating) variants.
-5. `get_reason` (return `nothing` or a string) for user feedback, gated on
-   `indicated_to_stop`.
-6. `indicates_convergence(::YourCriterion)` to mark if meeting it implies convergence.
-   The `(criterion, criterion_state)` variant is derived from this one and does not need to be
-   defined.
+5. `get_reason` (return `nothing` or a string) for user feedback, gated on `indicated_to_stop`.
+6. `indicates_convergence(::Type{YourCriterion})` to mark if meeting it implies convergence.
+   The `(criterion,)` and the `(criterion, criterion_state)` variant are derived from this one and do not need to be defined.
 
 You may also implement `Base.summary(io, criterion, criterion_state)` for compact status reports,
 and `indicated_to_stop(criterion, criterion_state)` if your state does not record its status in an

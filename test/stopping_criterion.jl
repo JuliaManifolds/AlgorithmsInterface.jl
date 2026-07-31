@@ -46,7 +46,7 @@ function AlgorithmsInterface.get_reason(
     stopping_criterion_state.at_iteration < 0 && return nothing
     return "Converged at iteration $(stopping_criterion_state.at_iteration).\n"
 end
-AlgorithmsInterface.indicates_convergence(::StopWhenConverged) = true
+AlgorithmsInterface.indicates_convergence(::Type{StopWhenConverged}) = true
 
 # Never indicates to stop, but records how many times it was asked, so that short-circuiting
 # inside the meta criteria becomes observable.
@@ -76,7 +76,7 @@ function AlgorithmsInterface.is_finished!(
     return false
 end
 AlgorithmsInterface.get_reason(::CountingCriterion, ::CountingCriterionState) = nothing
-AlgorithmsInterface.indicates_convergence(::CountingCriterion) = false
+AlgorithmsInterface.indicates_convergence(::Type{CountingCriterion}) = false
 
 # Indicates to stop immediately, but implements nothing beyond the bare minimum: no `get_reason`
 # and no `indicates_convergence`, so it exercises the fallbacks for both.
@@ -119,7 +119,7 @@ end
 AlgorithmsInterface.indicated_to_stop(
     ::UnconventionalCriterion, stopping_criterion_state::UnconventionalCriterionState
 ) = stopping_criterion_state.stopped
-AlgorithmsInterface.indicates_convergence(::UnconventionalCriterion) = true
+AlgorithmsInterface.indicates_convergence(::Type{UnconventionalCriterion}) = true
 
 @testset "StopAfterIteration" begin
     s1 = StopAfterIteration(2)
@@ -281,7 +281,7 @@ end
     @test indicates_convergence(converging, scs)
 
     # `tol | maxiter`: the criteria-only variant is unconditionally `false`, because
-    # `indicates_convergence(::StopWhenAny) = all(...)` and the fallback never converges.
+    # `indicates_convergence(::Type{<:StopWhenAny}) = all(...)` and the fallback never converges.
     # The state-aware variant has to distinguish the two ways of stopping.
     stop_when = converging | fallback
     @test !indicates_convergence(stop_when)

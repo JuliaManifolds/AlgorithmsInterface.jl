@@ -14,12 +14,11 @@ It should usually implement
 * [`initialize_state!`](@ref)`(problem, algorithm, stopping_criterion)`
 * [`initialize_state`](@ref)`(problem, algorithm, stopping_criterion)`
 * [`get_reason`](@ref)`(stopping_criterion, stopping_criterion_state)`
-* [`indicates_convergence`](@ref)`(stopping_criterion, [stopping_criterion_state])`
+* [`indicates_convergence`](@ref)`(::Type{<:StoppingCriterion})`
 
-Note that only the single-argument [`indicates_convergence`](@ref) has to be implemented:
-it answers whether meeting this criterion *would* mean convergence, which is a property of the
-criterion alone. The variant that additionally takes a [`StoppingCriterionState`](@ref) answers
-whether it *did* happen and can be derived.
+Note that only [`indicates_convergence`](@ref) has to be implemented:
+it answers whether meeting this criterion *would* mean convergence, which is a static property of the criterion type alone.
+Both the variant taking a criterion and the one that additionally takes a [`StoppingCriterionState`](@ref), answering whether it *did* happen are derived from it.
 """
 abstract type StoppingCriterion end
 
@@ -84,16 +83,20 @@ indicated_to_stop(algorithm::Algorithm, state::State) =
     indicated_to_stop(algorithm.stopping_criterion, state.stopping_criterion_state)
 
 @doc """
+    indicates_convergence(::Type{<:StoppingCriterion})
     indicates_convergence(stopping_criterion::StoppingCriterion)
 
 Return whether or not a [`StoppingCriterion`](@ref) indicates convergence.
 
 This is a static property of the criterion itself and independent of any run:
 it answers whether meeting this criterion *would* allow to conclude that the algorithm converged.
+Since it does not depend on the values a criterion is configured with, it is answered in the type domain, and a new criterion should implement the variant taking the type.
 The default is `false`, which is the conservative answer for a criterion that makes no such promise,
 for example a budget such as [`StopAfterIteration`](@ref).
 """
-indicates_convergence(stopping_criterion::StoppingCriterion) = false
+indicates_convergence(::Type{<:StoppingCriterion}) = false
+
+indicates_convergence(stopping_criterion::StoppingCriterion) = indicates_convergence(typeof(stopping_criterion))
 
 @doc """
     indicates_convergence(stopping_criterion::StoppingCriterion, ::StoppingCriterionState)
@@ -230,7 +233,7 @@ end
 StopWhenAll(c::AbstractVector{<:StoppingCriterion}) = StopWhenAll(c...)
 
 @doc """
-    indicates_convergence(stop_when_all::StopWhenAll)
+    indicates_convergence(::Type{<:StopWhenAll})
 
 A [`StopWhenAll`](@ref) indicates convergence whenever *one* of its criteria does.
 
@@ -238,8 +241,8 @@ Since it can only indicate to stop once every one of its criteria does, a single
 allows to conclude convergence is enough to conclude it for the group as a whole.
 Note how this is the opposite quantifier from [`StopWhenAny`](@ref).
 """
-function indicates_convergence(stop_when_all::StopWhenAll)
-    return any(indicates_convergence, stop_when_all.criteria)
+function indicates_convergence(::Type{StopWhenAll{TCriteria}}) where {TCriteria <: Tuple}
+    return any(indicates_convergence, fieldtypes(TCriteria))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", stop_when_all::StopWhenAll)
@@ -290,7 +293,7 @@ end
 StopWhenAny(c::AbstractVector{<:StoppingCriterion}) = StopWhenAny(c...)
 
 @doc """
-    indicates_convergence(stop_when_any::StopWhenAny)
+    indicates_convergence(::Type{<:StopWhenAny})
 
 A [`StopWhenAny`](@ref) indicates convergence only when *all* of its criteria do.
 
@@ -302,8 +305,8 @@ This is deliberately pessimistic, and is why a `tolerance | budget` combination 
 convergent as a criterion. To ask whether a *particular run* stopped because the convergence
 criterion is what triggered, pass the accompanying [`GroupStoppingCriterionState`](@ref) as well.
 """
-function indicates_convergence(stop_when_any::StopWhenAny)
-    return all(indicates_convergence, stop_when_any.criteria)
+function indicates_convergence(::Type{StopWhenAny{TCriteria}}) where {TCriteria <: Tuple}
+    return all(indicates_convergence, fieldtypes(TCriteria))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", stop_when_any::StopWhenAny)
@@ -377,7 +380,7 @@ end
 
 Return whether a group of stopping criteria stopped because of convergence.
 
-Unlike the single-argument variant, which can only reason about the criteria themselves, this
+Unlike the variant without a state, which can only reason about the criteria types themselves, this
 consults the accompanying [`StoppingCriterionState`](@ref)s and therefore only takes the
 children that actually indicated to stop into account. A group indicates convergence as soon as
 *one* of those children does, so a [`StopWhenAny`](@ref) combining a convergence criterion with a

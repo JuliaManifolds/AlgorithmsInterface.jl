@@ -15,8 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It recurses through nested combinations, so it separates stopping on a collapsed step size from stopping on an exhausted iteration budget — a distinction `indicates_convergence` is too coarse for.
 - Convenience two-argument `get_reason(algorithm, state)`, and likewise for `indicated_to_stop`, `indicates_convergence` and `get_active_stopping_criteria`, extracting the criterion and its state the way `is_finished` already did.
 - `StopReasonAction`, a `LoggingAction` that reports `get_reason` at the `:Stop` context.
-- Defaults for `get_reason` (`nothing`) and for the single-argument `indicates_convergence` (`false`), so a criterion that implements neither no longer hits a `MethodError` from the derived convergence reporting.
+- Defaults for `get_reason` (`nothing`) and for the type-domain `indicates_convergence` (`false`), so a criterion that implements neither no longer hits a `MethodError` from the derived convergence reporting.
 - Exports for `DefaultStoppingCriterionState`, `StopAfterTimePeriodState` and `GroupStoppingCriterionState`, which a downstream criterion is expected to reuse.
+
+### Changed
 
 ### Fixed
 
