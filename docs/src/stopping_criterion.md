@@ -226,18 +226,18 @@ end
 Finally, we need to say what our criterion reports once it has triggered.
 There are two separate questions here, and keeping them apart is what makes the generic reporting work:
 
-* *Did* this criterion indicate to stop? This is answered by [`indicated_to_stop`](@ref), and it is what all the generic machinery is built on.
+* *Did* this criterion indicate to stop? This is answered by [`is_active`](@ref), and it is what all the generic machinery is built on.
 * Why, in words? This is answered by [`get_reason`](@ref), and it is for human consumption only.
 
 We get the first one for free.
-The default implementation of [`indicated_to_stop`](@ref) reads the `at_iteration` property of the state, and our `StopWhenStableState` has one, following the convention that a negative value means "has not (yet) indicated to stop".
-Only a state that records its status some other way has to implement [`indicated_to_stop`](@ref) itself.
+The default implementation of [`is_active`](@ref) reads the `at_iteration` property of the state, and our `StopWhenStableState` has one, following the convention that a negative value means "has not (yet) indicated to stop".
+Only a state that records its status some other way has to implement [`is_active`](@ref) itself.
 
 That leaves the message, plus the static statement that meeting this criterion *does* mean convergence:
 
 ```@example Heron
 function AlgorithmsInterface.get_reason(c::StopWhenStable, st::StopWhenStableState)
-    indicated_to_stop(c, st) || return nothing
+    is_active(c, st) || return nothing
     return "The algorithm reached an approximate stable point after $(st.at_iteration) iterations; the change $(st.delta) is less than $(c.tol).\n"
 end
 
@@ -249,7 +249,7 @@ Re-checking the predicate would make the message disappear again as soon as the 
 
 Only the type-domain [`indicates_convergence`](@ref) needs to be defined.
 It answers "would meeting this criterion mean the algorithm converged?", which is a static property of the criterion type alone.
-The variant taking a criterion simply forwards to the type, and the two-argument variant, which additionally answers "*did* it happen?", is derived from it and [`indicated_to_stop`](@ref):
+The variant taking a criterion simply forwards to the type, and the two-argument variant, which additionally answers "*did* it happen?", is derived from it and [`is_active`](@ref):
 
 ```@example Heron
 criterion = StopWhenStable(1e-8)
@@ -326,12 +326,12 @@ Implementing a criterion usually means defining:
 2. A state subtype of [`StoppingCriterionState`](@ref) capturing dynamic fields, including an `at_iteration` recording when the criterion triggered.
 3. `initialize_state` and `initialize_state!` for setup/reset.
 4. `is_finished!` (mutating) and optionally `is_finished` (non‑mutating) variants.
-5. `get_reason` (return `nothing` or a string) for user feedback, gated on `indicated_to_stop`.
+5. `get_reason` (return `nothing` or a string) for user feedback, gated on `is_active`.
 6. `indicates_convergence(::Type{YourCriterion})` to mark if meeting it implies convergence.
    The `(criterion,)` and the `(criterion, criterion_state)` variant are derived from this one and do not need to be defined.
 
 You may also implement `Base.summary(io, criterion, criterion_state)` for compact status reports,
-and `indicated_to_stop(criterion, criterion_state)` if your state does not record its status in an
+and `is_active(criterion, criterion_state)` if your state does not record its status in an
 `at_iteration` property.
 
 ## Reference API

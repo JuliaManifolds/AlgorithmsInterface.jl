@@ -38,7 +38,7 @@ property, and provide corresponding `getproperty` and `setproperty!` methods.
   means that it has not (yet) indicated to stop.
 
 A state that records its status differently can instead implement
-[`indicated_to_stop`](@ref)`(stopping_criterion, stopping_criterion_state)`.
+[`is_active`](@ref)`(stopping_criterion, stopping_criterion_state)`.
 """
 abstract type StoppingCriterionState end
 
@@ -55,7 +55,7 @@ Reasons are concatenated when several criteria are combined and are printed verb
 should end in a newline.
 
 This is meant for human consumption only. To decide programmatically whether a criterion
-indicated to stop, use [`indicated_to_stop`](@ref) instead.
+indicated to stop, use [`is_active`](@ref) instead.
 The default returns `nothing`, so a criterion that has no message to provide does not have to implement this.
 """
 get_reason(::StoppingCriterion, ::StoppingCriterionState) = nothing
@@ -64,23 +64,23 @@ get_reason(algorithm::Algorithm, state::State) =
     get_reason(algorithm.stopping_criterion, state.stopping_criterion_state)
 
 @doc """
-    indicated_to_stop(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
-    indicated_to_stop(algorithm::Algorithm, state::State)
+    is_active(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
+    is_active(algorithm::Algorithm, state::State)
 
-Return whether a [`StoppingCriterion`](@ref) in the given [`StoppingCriterionState`](@ref) has
-indicated to stop, that is whether it became active during the current run.
+Return whether a [`StoppingCriterion`](@ref) in the given [`StoppingCriterionState`](@ref) is
+active, that is whether it has indicated to stop during the current run.
 The second variant extracts the criterion and its state from `algorithm` and `state`.
 
 This is the machine-readable counterpart of [`get_reason`](@ref) and the predicate the generic convergence reporting is built on.
 The default implementation reads the `at_iteration` property of the state, see [`StoppingCriterionState`](@ref),
 so it only has to be implemented for a state that records its status differently.
 """
-indicated_to_stop(
+is_active(
     ::StoppingCriterion, stopping_criterion_state::StoppingCriterionState
 ) = stopping_criterion_state.at_iteration >= 0
 
-indicated_to_stop(algorithm::Algorithm, state::State) =
-    indicated_to_stop(algorithm.stopping_criterion, state.stopping_criterion_state)
+is_active(algorithm::Algorithm, state::State) =
+    is_active(algorithm.stopping_criterion, state.stopping_criterion_state)
 
 @doc """
     indicates_convergence(::Type{<:StoppingCriterion})
@@ -112,7 +112,7 @@ since the algorithm has then not yet stopped.
 function indicates_convergence(
         stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState,
     )
-    return indicated_to_stop(stopping_criterion, stopping_criterion_state) &&
+    return is_active(stopping_criterion, stopping_criterion_state) &&
         indicates_convergence(stopping_criterion)
 end
 
@@ -186,8 +186,8 @@ end
     get_active_stopping_criteria(stopping_criterion::StoppingCriterion, stopping_criterion_state::StoppingCriterionState)
     get_active_stopping_criteria(algorithm::Algorithm, state::State)
 
-Return all `(stopping_criterion, stopping_criterion_state)` pairs that [`indicated_to_stop`](@ref),
-as a vector.
+Return all `(stopping_criterion, stopping_criterion_state)` pairs for which the criterion
+[`is_active`](@ref), as a vector.
 The variant with two arguments extracts the criterion and its state from `algorithm` and `state`.
 
 Meta criteria such as [`StopWhenAll`](@ref) and [`StopWhenAny`](@ref) are recursed into and do not
@@ -204,7 +204,7 @@ function get_active_stopping_criteria(
         stopping_criterion_state::StoppingCriterionState,
     )
     pairs = Tuple{StoppingCriterion, StoppingCriterionState}[]
-    indicated_to_stop(stopping_criterion, stopping_criterion_state) &&
+    is_active(stopping_criterion, stopping_criterion_state) &&
         push!(pairs, (stopping_criterion, stopping_criterion_state))
     return pairs
 end
@@ -360,14 +360,14 @@ function get_reason(
         stop_when::Union{StopWhenAll, StopWhenAny},
         stopping_criterion_states::GroupStoppingCriterionState,
     )
-    indicated_to_stop(stop_when, stopping_criterion_states) || return nothing
+    is_active(stop_when, stopping_criterion_states) || return nothing
     # only the children that did indicate to stop have anything to report, and of those the ones
     # without a message return `nothing`, which `join` would render as the literal text "nothing"
     reasons = (
         get_reason(stopping_criterion, stopping_criterion_state) for
             (stopping_criterion, stopping_criterion_state) in
             zip(stop_when.criteria, stopping_criterion_states.criteria_states)
-            if indicated_to_stop(stopping_criterion, stopping_criterion_state)
+            if is_active(stopping_criterion, stopping_criterion_state)
     )
     reason = join(Iterators.filter(!isnothing, reasons))
     # a group that indicated to stop but collected no message at all has nothing to say either,
@@ -391,7 +391,7 @@ function indicates_convergence(
         stop_when::Union{StopWhenAll, StopWhenAny},
         stopping_criterion_states::GroupStoppingCriterionState,
     )
-    indicated_to_stop(stop_when, stopping_criterion_states) || return false
+    is_active(stop_when, stopping_criterion_states) || return false
     return any(
         st -> indicates_convergence(st[1], st[2]),
         zip(stop_when.criteria, stopping_criterion_states.criteria_states),
@@ -509,7 +509,7 @@ function Base.summary(
         io::IO,
         stop_when_any::StopWhenAny, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    has_stopped = indicated_to_stop(stop_when_any, stopping_criterion_states)
+    has_stopped = is_active(stop_when_any, stopping_criterion_states)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop when _one_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in
@@ -523,7 +523,7 @@ function Base.summary(
         io::IO,
         stop_when_all::StopWhenAll, stopping_criterion_states::GroupStoppingCriterionState,
     )
-    has_stopped = indicated_to_stop(stop_when_all, stopping_criterion_states)
+    has_stopped = is_active(stop_when_all, stopping_criterion_states)
     s = has_stopped ? "reached" : "not reached"
     r = "Stop when _all_ of the following are fulfilled:\n"
     for (stopping_criterion, stopping_criterion_state) in
@@ -609,7 +609,7 @@ function get_reason(
         stop_after_iteration::StopAfterIteration,
         stopping_criterion_state::DefaultStoppingCriterionState,
     )
-    if indicated_to_stop(stop_after_iteration, stopping_criterion_state)
+    if is_active(stop_after_iteration, stopping_criterion_state)
         return "At iteration $(stopping_criterion_state.at_iteration) the algorithm reached its maximal number of iterations ($(stop_after_iteration.max_iterations)).\n"
     end
     return nothing
@@ -619,7 +619,7 @@ function Base.summary(
         stop_after_iteration::StopAfterIteration,
         stopping_criterion_state::DefaultStoppingCriterionState,
     )
-    has_stopped = indicated_to_stop(stop_after_iteration, stopping_criterion_state)
+    has_stopped = is_active(stop_after_iteration, stopping_criterion_state)
     s = has_stopped ? "reached" : "not reached"
     return print(io, "Max Iterations ($(stop_after_iteration.max_iterations)): $s")
 end
@@ -721,7 +721,7 @@ function get_reason(
         stop_after::StopAfter,
         stopping_criterion_state::StopAfterTimePeriodState,
     )
-    if indicated_to_stop(stop_after, stopping_criterion_state)
+    if is_active(stop_after, stopping_criterion_state)
         return "After iteration $(stopping_criterion_state.at_iteration) the algorithm ran for $(floor(stopping_criterion_state.time, typeof(stop_after.threshold))) (threshold: $(stop_after.threshold)).\n"
     end
     return nothing
@@ -730,7 +730,7 @@ function Base.summary(
         io::IO,
         stop_after::StopAfter, stopping_criterion_state::StopAfterTimePeriodState,
     )
-    has_stopped = indicated_to_stop(stop_after, stopping_criterion_state)
+    has_stopped = is_active(stop_after, stopping_criterion_state)
     s = has_stopped ? "reached" : "not reached"
     return print(io, "stopped after $(stop_after.threshold): $s")
 end

@@ -34,7 +34,7 @@ export StoppingCriterion, StoppingCriterionState
 export StopAfter, StopAfterIteration, StopWhenAll, StopWhenAny
 export DefaultStoppingCriterionState, StopAfterTimePeriodState, GroupStoppingCriterionState
 
-export is_finished, is_finished!, get_reason, indicated_to_stop, indicates_convergence
+export is_finished, is_finished!, get_reason, is_active, indicates_convergence
 export get_active_stopping_criteria
 
 # Logging interface
