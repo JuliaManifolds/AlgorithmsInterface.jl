@@ -46,26 +46,7 @@ struct HeronAlgorithm <: Algorithm
     stopping_criterion
 end
 
-mutable struct HeronState <: State
-    iterate::Float64
-    iteration::Int
-    stopping_criterion_state
-end
-
-function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
-    x0 = rand()
-    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
-    return HeronState(x0, 0, stopping_criterion_state)
-end
-
-function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
-    state.iterate = rand()
-    state.iteration = 0
-    initialize_state!(problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state)
-    return state
-end
-
-function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::DefaultState)
     S = problem.S
     x = state.iterate
     state.iterate = 0.5 * (x + S / x)
@@ -75,10 +56,12 @@ end
 function heron_sqrt(x; stopping_criterion = StopAfterIteration(10))
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(stopping_criterion)
-    return solve(prob, alg)  # allocates & runs
+    return solve(prob, alg; iterate = 1.0)  # allocates & runs
 end
 nothing # hide
 ```
+
+Note that this leaves the state to [`DefaultState`](@ref), as the [interface section](@ref sec_interface) does, so there is neither a state type nor an `initialize_state` to be seen here.
 
 It is already interesting to note that there are no further modifications necessary to start leveraging the logging system.
 
@@ -211,7 +194,7 @@ function AlgorithmsInterface.handle_message!(
         action::CaptureHistory,
         problem::SqrtProblem,
         algorithm::HeronAlgorithm,
-        state::HeronState;
+        state::DefaultState;
         kwargs...
 )
     push!(action.iterates, state.iterate)
@@ -287,7 +270,7 @@ end
 StatsCollector() = StatsCollector(0, 0.0, 0.0)
 
 function AlgorithmsInterface.handle_message!(
-        action::StatsCollector, problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState;
+        action::StatsCollector, problem::SqrtProblem, algorithm::HeronAlgorithm, state::DefaultState;
         kwargs...
 )
     action.count += 1
@@ -415,7 +398,7 @@ Here we will illustrate this by a slight adaptation of our algorithm, which coul
 To emit a custom logging event from within your algorithm, call [`emit_message`](@ref):
 
 ```@example Heron
-function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::DefaultState)
     # Suppose we check for numerical issues
     if !isfinite(state.iterate) || mod(state.iteration, 10) == 0
         emit_message(problem, algorithm, state, :Restart)

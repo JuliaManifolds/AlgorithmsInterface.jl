@@ -17,11 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StopReasonAction`, a `LoggingAction` that reports `get_reason` at the `:Stop` context.
 - Defaults for `get_reason` (`nothing`) and for the type-domain `indicates_convergence` (`false`), so a criterion that implements neither no longer hits a `MethodError` from the derived convergence reporting.
 - Exports for `DefaultStoppingCriterionState`, `StopAfterTimePeriodState` and `GroupStoppingCriterionState`, which a downstream criterion is expected to reuse.
+- `DefaultState`, a `State` storing the `iterate`, `iteration` and `stopping_criterion_state` every state is expected to provide, next to a single `data` field for anything else an algorithm has to carry from one step to the next.
+  The `data` field is opaque to this package and none of its contents are exposed as properties, so an algorithm reaches them through `state.data`.
+- Defaults for `initialize_state` and `initialize_state!` returning and resetting a `DefaultState`, so that an algorithm whose state holds nothing beyond the expected properties only has to provide a `Problem`, an `Algorithm` and a `step!`.
+  Both accept their arguments positionally as `(problem, algorithm, iterate, state_data, stopping_state_data)`, next to the keyword form the interface documents.
+- Defaults for `initialize_state(problem, algorithm, stopping_criterion)` and its mutating variant, returning and resetting a `DefaultStoppingCriterionState`, with a `stopping_state_data` keyword to seed its `data`.
 
 ### Changed
 
 - `indicates_convergence` without a state moved to the type domain: a new criterion implements `indicates_convergence(::Type{YourCriterion})`, and `indicates_convergence(criterion)` forwards to it.
   `StopWhenAll` and `StopWhenAny` combine their children in the type domain as well, so a criterion that only implements the variant taking an instance is no longer accounted for in a group.
+- `DefaultStoppingCriterionState` gained a type parameter and a `data` field for whatever a criterion has to remember from one iteration to the next.
+  It defaults to `nothing`, so `DefaultStoppingCriterionState()` is unaffected.
+- `StopAfterIteration` no longer carries its own `initialize_state` and `initialize_state!`, which the new criterion-level defaults now cover.
 
 ### Fixed
 

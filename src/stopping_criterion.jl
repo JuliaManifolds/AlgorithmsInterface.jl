@@ -3,18 +3,21 @@
 
 An abstract type to represent a stopping criterion of an [`Algorithm`](@ref).
 
-A concrete [`StoppingCriterion`](@ref) should also implement an
-[`initialize_state(problem::Problem, algorithm::Algorithm, stopping_criterion::StoppingCriterion; kwargs...)`](@ref) function to create its accompanying
-[`StoppingCriterionState`](@ref), as well as the corresponding mutating variant to reset such a [`StoppingCriterionState`](@ref).
+A concrete [`StoppingCriterion`](@ref) receives its accompanying [`StoppingCriterionState`](@ref)
+from a [`DefaultStoppingCriterionState`](@ref), which records the iteration at which the criterion
+indicated to stop and carries a `data` field for anything else it has to remember.
+A criterion is therefore free of any state bookkeeping by default.
 
 It should usually implement
 
 * [`is_finished!`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
 * [`is_finished`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
-* [`initialize_state!`](@ref)`(problem, algorithm, stopping_criterion)`
-* [`initialize_state`](@ref)`(problem, algorithm, stopping_criterion)`
 * [`get_reason`](@ref)`(stopping_criterion, stopping_criterion_state)`
 * [`indicates_convergence`](@ref)`(::Type{<:StoppingCriterion})`
+
+Only a criterion that is not served by that state defines one of its own, and with it an
+[`initialize_state(problem::Problem, algorithm::Algorithm, stopping_criterion::StoppingCriterion; kwargs...)`](@ref)
+to create it, as well as the corresponding mutating variant to reset it.
 
 Note that only [`indicates_convergence`](@ref) has to be implemented:
 it answers whether meeting this criterion *would* mean convergence, which is a static property of the criterion type alone.
@@ -560,27 +563,46 @@ end
 """
     DefaultStoppingCriterionState <: StoppingCriterionState
 
-A [`StoppingCriterionState`](@ref) that does not require any information besides
-storing the iteration number at which it (last) indicated to stop.
+A [`StoppingCriterionState`](@ref) that stores the iteration number at which it (last)
+indicated to stop, and optionally any further data its [`StoppingCriterion`](@ref) needs.
 
 # Fields
 
 * `at_iteration::Int` stores the iteration number at which this state indicated to stop.
   * `0` means it already indicated to stop at the start.
   * any negative number means that it has not yet indicated to stop.
+* `data` stores any further data the criterion has to carry from one iteration to the next,
+  for example a value it compares against in the next one.
+  It is opaque to this package, and none of its contents are exposed as properties of the
+  state, so a criterion reaches them through `stopping_criterion_state.data`.
+  A mutable struct of its own is the recommended choice; `nothing`, the default, indicates
+  that the criterion needs no further data.
+
+# Constructor
+
+    DefaultStoppingCriterionState(data = nothing)
+
+Initialize the state to not having indicated to stop yet, carrying `data` alongside it.
 """
-mutable struct DefaultStoppingCriterionState <: StoppingCriterionState
+mutable struct DefaultStoppingCriterionState{D} <: StoppingCriterionState
     at_iteration::Int
-    DefaultStoppingCriterionState() = new(-1)
+    data::D
 end
 
-initialize_state(::Problem, ::Algorithm, ::StopAfterIteration; kwargs...) = DefaultStoppingCriterionState()
+DefaultStoppingCriterionState(data = nothing) = DefaultStoppingCriterionState(-1, data)
+
+# Fallbacks for any criterion that needs no state of its own beyond `at_iteration`, so that
+# such a criterion does not have to provide these two methods at all.
+initialize_state(
+    ::Problem, ::Algorithm, ::StoppingCriterion; stopping_state_data = nothing, kwargs...
+) = DefaultStoppingCriterionState(stopping_state_data)
 function initialize_state!(
-        ::Problem, ::Algorithm, ::StopAfterIteration,
+        ::Problem, ::Algorithm, ::StoppingCriterion,
         stopping_criterion_state::DefaultStoppingCriterionState;
-        kwargs...,
+        stopping_state_data = stopping_criterion_state.data, kwargs...,
     )
     stopping_criterion_state.at_iteration = -1
+    stopping_criterion_state.data = stopping_state_data
     return stopping_criterion_state
 end
 

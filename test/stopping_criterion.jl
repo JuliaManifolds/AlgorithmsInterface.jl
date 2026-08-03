@@ -9,17 +9,9 @@ problem = AIT.DummyProblem()
 # ---------------
 # `StopAfterIteration` and `StopAfter` both have `indicates_convergence == false`, so neither can
 # exercise the convergence-versus-fallback logic. This one does.
+# It also leaves its state to the default, so it exercises the `initialize_state` fallbacks.
 struct StopWhenConverged <: StoppingCriterion
     at::Int
-end
-AlgorithmsInterface.initialize_state(::Problem, ::Algorithm, ::StopWhenConverged; kwargs...) =
-    DefaultStoppingCriterionState()
-function AlgorithmsInterface.initialize_state!(
-        ::Problem, ::Algorithm, ::StopWhenConverged,
-        stopping_criterion_state::DefaultStoppingCriterionState; kwargs...,
-    )
-    stopping_criterion_state.at_iteration = -1
-    return stopping_criterion_state
 end
 function AlgorithmsInterface.is_finished(
         ::Problem, ::Algorithm, state::State,
@@ -78,18 +70,9 @@ end
 AlgorithmsInterface.get_reason(::CountingCriterion, ::CountingCriterionState) = nothing
 AlgorithmsInterface.indicates_convergence(::Type{CountingCriterion}) = false
 
-# Indicates to stop immediately, but implements nothing beyond the bare minimum: no `get_reason`
-# and no `indicates_convergence`, so it exercises the fallbacks for both.
+# Indicates to stop immediately, but implements nothing beyond the bare minimum: no `get_reason`,
+# no `indicates_convergence` and no state of its own, so it exercises the fallbacks for all three.
 struct SilentCriterion <: StoppingCriterion end
-AlgorithmsInterface.initialize_state(::Problem, ::Algorithm, ::SilentCriterion; kwargs...) =
-    DefaultStoppingCriterionState()
-function AlgorithmsInterface.initialize_state!(
-        ::Problem, ::Algorithm, ::SilentCriterion,
-        stopping_criterion_state::DefaultStoppingCriterionState; kwargs...,
-    )
-    stopping_criterion_state.at_iteration = -1
-    return stopping_criterion_state
-end
 AlgorithmsInterface.is_finished(
     ::Problem, ::Algorithm, ::State, ::SilentCriterion, ::DefaultStoppingCriterionState
 ) = true
@@ -120,6 +103,47 @@ AlgorithmsInterface.is_active(
     ::UnconventionalCriterion, stopping_criterion_state::UnconventionalCriterionState
 ) = stopping_criterion_state.stopped
 AlgorithmsInterface.indicates_convergence(::Type{UnconventionalCriterion}) = true
+
+@testset "DefaultStoppingCriterionState" begin
+    scs = DefaultStoppingCriterionState()
+    @test scs isa StoppingCriterionState
+    @test scs.at_iteration == -1
+    @test scs.data === nothing
+
+    # the data field is opaque, so anything goes and nothing of it is exposed as a property
+    with_data = DefaultStoppingCriterionState(Dict{Symbol, Any}(:last_change => 1.0))
+    @test with_data.at_iteration == -1
+    @test with_data.data[:last_change] == 1.0
+    @test !hasproperty(with_data, :last_change)
+end
+
+@testset "a criterion without a state of its own falls back to the default" begin
+    # `SilentCriterion` provides neither `initialize_state` nor `initialize_state!`
+    silent = SilentCriterion()
+    algorithm = AIT.DummyAlgorithm(silent)
+
+    scs = initialize_state(problem, algorithm, silent)
+    @test scs isa DefaultStoppingCriterionState
+    @test scs.at_iteration == -1
+
+    scs.at_iteration = 3
+    @test initialize_state!(problem, algorithm, silent, scs) === scs
+    @test scs.at_iteration == -1
+
+    # `stopping_state_data` seeds the state's data, and a reset keeps it unless given a new one
+    seeded = initialize_state(problem, algorithm, silent; stopping_state_data = (; tol = 1.0e-8))
+    @test seeded.data == (; tol = 1.0e-8)
+    initialize_state!(problem, algorithm, silent, seeded)
+    @test seeded.data == (; tol = 1.0e-8)
+    initialize_state!(problem, algorithm, silent, seeded; stopping_state_data = (; tol = 1.0e-4))
+    @test seeded.data == (; tol = 1.0e-4)
+
+    # a criterion that does provide them keeps its own state type
+    counting = CountingCriterion()
+    @test initialize_state(
+        problem, AIT.DummyAlgorithm(counting), counting,
+    ) isa CountingCriterionState
+end
 
 @testset "StopAfterIteration" begin
     s1 = StopAfterIteration(2)

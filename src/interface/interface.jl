@@ -5,6 +5,21 @@ _doc_init_state = """
 Initialize a [`State`](@ref) based on a [`Problem`](@ref) and an [`Algorithm`](@ref).
 The `kwargs...` should allow to initialize for example the initial point.
 This can be done in-place for `state`, then only values that did change have to be provided.
+
+Both have a default in terms of a [`DefaultState`](@ref), which stores the properties every
+[`State`](@ref) is expected to provide next to a single `data` field for anything else an
+algorithm needs, so an algorithm that is served by such a state does not have to provide a
+state type of its own.
+These defaults also take their arguments positionally:
+
+    state = initialize_state(problem, algorithm, iterate, state_data, stopping_state_data; kwargs...)
+    state = initialize_state!(problem, algorithm, state, iterate, state_data, stopping_state_data; kwargs...)
+
+Here `state_data` is what the [`DefaultState`](@ref) carries and `stopping_state_data` what the
+[`StoppingCriterionState`](@ref) does, both defaulting to `nothing` when allocating and to the
+values the `state` already holds when resetting.
+The remaining `kwargs...` are passed on to the corresponding function for the
+[`StoppingCriterion`](@ref) of the [`Algorithm`](@ref).
 """
 
 function initialize_state end
