@@ -13,10 +13,4 @@ end
 
 struct DummyProblem <: AlgorithmsInterface.Problem end
 
-mutable struct DummyState{V, S <: AlgorithmsInterface.StoppingCriterionState} <: AlgorithmsInterface.State
-    iterate::V
-    stopping_criterion_state::S
-    iteration::Int
-end
-
 end

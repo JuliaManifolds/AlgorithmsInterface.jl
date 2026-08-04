@@ -51,23 +51,23 @@ This happens through the same initialization functions we used for initializing 
 - [`initialize_state`](@ref) constructs an entirely new stopping state for the algorithm
 - [`initialize_state!`](@ref) (in-place) reset of an existing stopping state.
 
-Since we leave the state to [`DefaultState`](@ref), this is already taken care of: the defaults pair it with the state of the algorithm's own criterion, along the lines of
+Since we leave the initialization to its defaults, this is already taken care of: they pair the [`State`](@ref) with the state of the algorithm's own criterion, along the lines of
 
 ```julia
-function AlgorithmsInterface.initialize_state(problem::Problem, algorithm::Algorithm; iterate, kwargs...)
+function AlgorithmsInterface.initialize_state(problem::Problem, algorithm::Algorithm, iterate; kwargs...)
     stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion; kwargs...)
-    return DefaultState(iterate, stopping_criterion_state)
+    return State(iterate, stopping_criterion_state)
 end
 ```
 
-A state of your own is where you would write that pairing out yourself.
+An [`initialize_state`](@ref) of your own only decides which `iterate` to pass along, and can leave that pairing to the method above.
 
 ### Iteration
 
 During the iteration procedure, as set out by our design principles, we do not have to modify any of the code, and the stopping criteria do not show up:
 
 ```@example Heron
-function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::DefaultState)
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::State)
     S = problem.S
     x = state.iterate
     state.iterate = 0.5 * (x + S / x)
@@ -79,14 +79,14 @@ What is really going on is that behind the scenes, the loop of the iterative sol
 
 ```julia
 while !is_finished!(problem, algorithm,  state)
-    increment!(state)
+    increment!(problem, algorithm, state)
     step!(problem, algorithm, state)
 end
 ```
 
 In other words, all of the logic is handled by the [`is_finished!`](@ref) function.
 The generic stopping criteria provided by this package have default implementations for this function that work out-of-the-box.
-This is partially because everything is reached under conventional names: `Algorithm` assumes the existence of `stopping_criterion`, while `State` assumes `iterate` and `iteration` and `stopping_criterion_state` to exist — which is exactly what [`DefaultState`](@ref) provides, and what a state of your own has to provide too.
+This is partially because everything is reached under conventional names: the generic code assumes an `Algorithm` to carry a `stopping_criterion`, and reads the `iterate`, the `iteration` and the `stopping_criterion_state` of the [`State`](@ref).
 
 ### Running the algorithm
 
@@ -96,7 +96,7 @@ We can again combine everything into a single function, but now make the stoppin
 function heron_sqrt(x; stopping_criterion)
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(stopping_criterion)
-    return solve(prob, alg; iterate = 1.0)  # allocates & runs
+    return solve(prob, alg, 1.0)  # allocates & runs
 end
 
 heron_sqrt(2; stopping_criterion = StopAfterIteration(10))
@@ -132,24 +132,22 @@ Suppose we want to stop when successive iterates change by less than `ϵ`, we co
 In order to do so, we need to define our own structs and implement the required interface.
 Again, we split up the data into a _static_ part, the [`StoppingCriterion`](@ref), and a _dynamic_ part, the [`StoppingCriterionState`](@ref).
 
-The dynamic part is usually not yours to write: [`DefaultStoppingCriterionState`](@ref) records the iteration at which the criterion triggered and carries a `data` field for anything else it has to remember, which covers most criteria.
-We spell out a state of our own here because it shows the full picture, and because a criterion that wants its fields named and typed is exactly the case that calls for one.
+The dynamic part is not yours to write: [`StoppingCriterionState`](@ref) records the iteration at which the criterion triggered, and carries a `data` field for anything else it has to remember.
+What a criterion does define is that `data` — here the previous iterate to compare against, and the change we measured, which we keep around for the message:
 
 ```@example Heron
 struct StopWhenStable <: StoppingCriterion
     tol::Float64    # when do we consider things converged
 end
 
-mutable struct StopWhenStableState <: StoppingCriterionState
+mutable struct StableData
     previous_iterate::Float64       # previous value to compare to
-    at_iteration::Int               # iteration at which stability was reached
     delta::Float64                  # difference between the values
 end
 ```
 
-Note that our mutable state holds both the `previous_iterate`, which we need to compare to,
-as well as the iteration at which the condition was satisfied.
-This is not strictly necessary, but can be convenient to have a persistent indication that convergence was reached.
+A mutable struct is the recommended container: the state keeps handing the same one back, and the criterion updates its fields in place.
+Note that the iteration at which the condition was satisfied is *not* part of it — that is the `at_iteration` the state records for every criterion.
 
 ### Initialization
 
@@ -158,17 +156,30 @@ This could be implemented as follows:
 
 ```@example Heron
 function AlgorithmsInterface.initialize_state(::Problem, ::Algorithm, c::StopWhenStable; kwargs...)
-    return StopWhenStableState(NaN, -1, NaN)
+    return StoppingCriterionState(StableData(NaN, NaN))
 end
 
 function AlgorithmsInterface.initialize_state!(
-        ::Problem, ::Algorithm, stop_when::StopWhenStable, st::StopWhenStableState;
+        ::Problem, ::Algorithm, stop_when::StopWhenStable, st::StoppingCriterionState;
         kwargs...
 )
-    st.previous_iterate = NaN
+    st.data.previous_iterate = NaN
+    st.data.delta = NaN
     st.at_iteration = -1
-    st.delta = NaN
     return st
+end
+```
+
+Both are handed a `stopping_state_data` keyword, which is `nothing` unless a caller wants to supply the container itself.
+Ignoring it, as above, means the criterion always uses one of its own; a criterion that lets it through takes what it is given instead, the way [`StopAfter`](@ref) does with its clock:
+
+```julia
+function AlgorithmsInterface.initialize_state(
+        ::Problem, ::Algorithm, c::StopWhenStable; stopping_state_data = nothing, kwargs...
+)
+    return StoppingCriterionState(
+        isnothing(stopping_state_data) ? StableData(NaN, NaN) : stopping_state_data
+    )
 end
 ```
 
@@ -179,18 +190,18 @@ Here, the mutating version alters the `stopping_criterion_state`, and should the
 
 ```@example Heron
 function AlgorithmsInterface.is_finished!(
-        ::Problem, ::Algorithm, state::State, c::StopWhenStable, st::StopWhenStableState
+        ::Problem, ::Algorithm, state::State, c::StopWhenStable, st::StoppingCriterionState
 )
     k = state.iteration
     if k == 0
-        st.previous_iterate = state.iterate
+        st.data.previous_iterate = state.iterate
         st.at_iteration = -1
         return false
     end
 
-    st.delta = abs(state.iterate - st.previous_iterate)
-    st.previous_iterate = state.iterate
-    if st.delta < c.tol
+    st.data.delta = abs(state.iterate - st.data.previous_iterate)
+    st.data.previous_iterate = state.iterate
+    if st.data.delta < c.tol
         st.at_iteration = k
         return true
     end
@@ -198,12 +209,12 @@ function AlgorithmsInterface.is_finished!(
 end
 
 function AlgorithmsInterface.is_finished(
-        ::Problem, ::Algorithm, state::State, c::StopWhenStable, st::StopWhenStableState
+        ::Problem, ::Algorithm, state::State, c::StopWhenStable, st::StoppingCriterionState
 )
     k = state.iteration
     k == 0 && return false
 
-    Δ = abs(state.iterate - st.previous_iterate)
+    Δ = abs(state.iterate - st.data.previous_iterate)
     return Δ < c.tol
 end
 ```
@@ -217,21 +228,21 @@ There are two separate questions here, and keeping them apart is what makes the 
 * Why, in words? This is answered by [`get_reason`](@ref), and it is for human consumption only.
 
 We get the first one for free.
-The default implementation of [`is_active`](@ref) reads the `at_iteration` property of the state, and our `StopWhenStableState` has one, following the convention that a negative value means "has not (yet) indicated to stop".
-Only a state that records its status some other way has to implement [`is_active`](@ref) itself.
+The default implementation of [`is_active`](@ref) reads the `at_iteration` property of the state, which every criterion has, following the convention that a negative value means "has not (yet) indicated to stop".
+Only a criterion that records its status in its `data` instead has to implement [`is_active`](@ref) itself.
 
 That leaves the message, plus the static statement that meeting this criterion *does* mean convergence:
 
 ```@example Heron
-function AlgorithmsInterface.get_reason(c::StopWhenStable, st::StopWhenStableState)
+function AlgorithmsInterface.get_reason(c::StopWhenStable, st::StoppingCriterionState)
     is_active(c, st) || return nothing
-    return "The algorithm reached an approximate stable point after $(st.at_iteration) iterations; the change $(st.delta) is less than $(c.tol).\n"
+    return "The algorithm reached an approximate stable point after $(st.at_iteration) iterations; the change $(st.data.delta) is less than $(c.tol).\n"
 end
 
 AlgorithmsInterface.indicates_convergence(::Type{StopWhenStable}) = true
 ```
 
-Note that `get_reason` gates on the *recorded* status rather than re-checking `st.delta < c.tol`.
+Note that `get_reason` gates on the *recorded* status rather than re-checking `st.data.delta < c.tol`.
 Re-checking the predicate would make the message disappear again as soon as the state moves on, whereas `at_iteration` is a permanent record of what happened.
 
 Only the type-domain [`indicates_convergence`](@ref) needs to be defined.
@@ -316,16 +327,16 @@ Implementing a criterion means defining:
    The `(criterion,)` and the `(criterion, criterion_state)` variant are derived from this one and do not need to be defined.
 
 The state is taken care of for you.
-[`initialize_state`](@ref) and [`initialize_state!`](@ref) return and reset a [`DefaultStoppingCriterionState`](@ref), which records the `at_iteration` that all the reporting is built on and carries a `data` field for whatever else the criterion has to remember — the `previous_iterate` and `delta` above, for instance.
+[`initialize_state`](@ref) and [`initialize_state!`](@ref) return and reset a [`StoppingCriterionState`](@ref), which records the `at_iteration` that all the reporting is built on and carries a `data` field for whatever else the criterion has to remember.
 
-Only a criterion that is not served by that state, as the one above wanted its fields named and typed, additionally defines:
+Only a criterion that needs such data, as the one above needed a `previous_iterate` to compare against, additionally defines:
 
-* A state subtype of [`StoppingCriterionState`](@ref) capturing its dynamic fields, including an `at_iteration` recording when the criterion triggered.
-* `initialize_state` and `initialize_state!` for its setup and reset.
+* A container for it, reached as `stopping_criterion_state.data`.
+* `initialize_state` and `initialize_state!` to fill and reset that container.
 
 You may also implement `Base.summary(io, criterion, criterion_state)` for compact status reports,
-and `is_active(criterion, criterion_state)` if your state does not record its status in an
-`at_iteration` property.
+and `is_active(criterion, criterion_state)` if your criterion does not record its status in the
+state's `at_iteration` property.
 
 ## Reference API
 

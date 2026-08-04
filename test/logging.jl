@@ -6,34 +6,26 @@ struct LogDummyProblem <: Problem end
 struct LogDummyAlgorithm <: Algorithm
     stopping_criterion
 end
-mutable struct LogDummyState{S <: StoppingCriterionState} <: State
-    iterate::Float64
-    iteration::Int
-    stopping_criterion_state::S
-end
-
-# State initialization for the dummy algorithm
+# State initialization for the dummy algorithm: it starts from zero rather than from an
+# iterate the caller hands it, so it implements `initialize_state` itself
 function AlgorithmsInterface.initialize_state(problem::LogDummyProblem, algorithm::LogDummyAlgorithm; kwargs...)
     sc_state = initialize_state(problem, algorithm, algorithm.stopping_criterion; kwargs...)
-    return LogDummyState(0.0, 0, sc_state)
+    return State(0.0, sc_state)
 end
 function AlgorithmsInterface.initialize_state!(
         problem::LogDummyProblem,
         algorithm::LogDummyAlgorithm,
-        state::LogDummyState;
+        state::State;
         kwargs...
     )
-    initialize_state!(problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state; kwargs...)
-    state.iterate = 0.0
-    state.iteration = 0
-    return state
+    return initialize_state!(problem, algorithm, state, 0.0; kwargs...)
 end
 
 # One trivial step per iteration (not relevant for the logging test)
 function AlgorithmsInterface.step!(
         ::LogDummyProblem,
         ::LogDummyAlgorithm,
-        state::LogDummyState,
+        state::State,
     )
     state.iterate += 1.0
     return state

@@ -23,13 +23,16 @@ Bundling these together loosely without forcing one giant monolithic type makes 
 * test algorithms in isolation by constructing minimal `Problem`/`Algorithm` pairs, and
 * extend behavior (add new stopping criteria, new logging events) without rewriting core loops.
 
-The interface in this package formalizes those roles with three abstract types:
+The interface in this package formalizes those roles with three types:
 * [`Problem`](@ref): immutable, algorithm‑agnostic input data.
 * [`Algorithm`](@ref): immutable configuration and parameters deciding how to iterate.
 * [`State`](@ref): mutable data that evolves (current iterate, caches, counters, diagnostics).
 
+The first two are abstract, and every algorithm defines its own pair.
+The third is a concrete type: since the data it carries is opaque to this package, one state serves them all.
+
 It provides a framework for decomposing iterative methods into small, composable parts:
-concrete `Problem`/`Algorithm`/`State` types have to implement a minimal set of core functionality,
+concrete `Problem`/`Algorithm` types have to implement a minimal set of core functionality,
 and this package helps to stitch everything together and provide additional helper functionality such as stopping criteria and logging functionality.
 
 ## [Concrete example: Heron's method](@id sec_heron)
@@ -62,19 +65,19 @@ struct HeronAlgorithm <: Algorithm
 end
 ```
 
-That leaves the third piece, the [`State`](@ref), which for most algorithms is entirely unremarkable:
-it holds the three properties the interface asks for – the `iterate`, the `iteration` counter and the `stopping_criterion_state` – and nothing else.
-This package therefore provides [`DefaultState`](@ref) for exactly that, so there is nothing to define here.
-[Writing your own](@ref sec_custom_state) is the exception, covered at the end of this section.
+That leaves the third piece, the [`State`](@ref).
+It holds the `iterate`, the `iteration` counter and the `stopping_criterion_state`, next to a `data` field for whatever else an algorithm might carry from one step to the next.
+Since that field is opaque to this package, the same state serves every algorithm, so there is nothing to define here.
 
-The same goes for initialization: [`initialize_state`](@ref) and [`initialize_state!`](@ref), which respectively construct a fresh state and reset an existing one, both default to a [`DefaultState`](@ref).
+The same goes for initialization: [`initialize_state`](@ref) and [`initialize_state!`](@ref), which respectively construct a fresh state and reset an existing one, both have a default.
+An algorithm implements them only to [decide where to start from](@ref sec_custom_init), covered at the end of this section.
 
 ### Iteration steps
 
 Algorithms define a mutable step via [`step!`](@ref). For Heron's method:
 
 ```@example Heron
-function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::DefaultState)
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::State)
     S = problem.S
     x = state.iterate
     state.iterate = 0.5 * (x + S / x)
@@ -85,10 +88,10 @@ end
 Note that we are only focussing on the actual algorithm, and *not* incrementing the iteration counter.
 These kinds of bookkeeping should be handled by the [`AlgorithmsInterface.increment!`](@ref) function, which will by default already increment the iteration counter.
 The following generic functionality is therefore enough for our purposes, and does *not* need to be defined.
-Nevertheless, if additional bookkeeping would be desired, this can be achieved by overloading that function:
+Nevertheless, if additional bookkeeping would be desired, this can be achieved by overloading that function for your [`Algorithm`](@ref):
 
 ```julia
-function AlgorithmsInterface.increment!(state::State)
+function AlgorithmsInterface.increment!(problem::Problem, algorithm::Algorithm, state::State)
     state.iteration += 1
     return state
 end
@@ -105,13 +108,13 @@ With these definitions in place you can already run (assuming you also choose a 
 function heron_sqrt(x; maxiter = 10)
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(StopAfterIteration(maxiter))
-    return solve(prob, alg; iterate = 1.0)  # allocates & runs
+    return solve(prob, alg, 1.0)  # allocates & runs
 end
 
 println("Approximate sqrt: ", heron_sqrt(16.0))
 ```
 
-The `iterate` keyword is where the default initialization gets its starting point from, and it is required: there is no sensible guess this package could make on an algorithm's behalf.
+The third argument is where the default initialization gets its starting point from, and it is required: there is no sensible guess this package could make on an algorithm's behalf.
 
 Note that [`solve`](@ref) will default to returning `state.iterate`.
 If desired, this can be customized by altering [`finalize_state!`](@ref).
@@ -119,8 +122,8 @@ We will refine this example with better halting logic and logging shortly.
 
 ### Carrying extra data
 
-Anything an algorithm has to carry from one step to the next beyond those three properties goes into the `data` field of the [`DefaultState`](@ref), which this package treats as opaque:
-it is passed along and reset alongside the rest of the state, but nothing is ever read from it, so an algorithm picks whatever container suits it.
+Anything an algorithm has to carry from one step to the next beyond those three properties goes into the `data` field of the [`State`](@ref).
+It is passed along and reset alongside the rest of the state, but nothing is ever read from it, so an algorithm picks whatever container suits it.
 Prefer a `NamedTuple` or a small struct of your own, which keep access to the contents type stable:
 
 ```@example Heron
@@ -128,7 +131,7 @@ struct TrackingHeronAlgorithm <: Algorithm
     stopping_criterion
 end
 
-function AlgorithmsInterface.step!(problem::SqrtProblem, ::TrackingHeronAlgorithm, state::DefaultState)
+function AlgorithmsInterface.step!(problem::SqrtProblem, ::TrackingHeronAlgorithm, state::State)
     S = problem.S
     x = state.iterate
     state.iterate = 0.5 * (x + S / x)
@@ -146,45 +149,28 @@ state.data.residuals
 Note that the `NamedTuple` itself is immutable while the vector inside it is not, which is all this needs: the state keeps handing the same container back, and the algorithm mutates its contents.
 Here the initial iterate and the data are passed positionally, as `initialize_state(problem, algorithm, iterate, state_data)`; the [`StoppingCriterionState`](@ref) can be given its own data as a further argument.
 
-### [Defining your own state](@id sec_custom_state)
+### [Deciding where to start](@id sec_custom_init)
 
-Reach for a state type of your own once `data` grows past a handful of entries, or once the algorithm wants to dispatch on the state itself.
-It has to provide the three expected properties, and with it come the two initialization methods that the default was providing until now:
+The one thing the defaults cannot know is where an algorithm should start, which is why that argument has no default.
+An algorithm that does know implements the variant without it, supplying that starting point and leaving the rest of the work to the generic methods:
 
 ```@example Heron
-mutable struct HeronState <: State
-    iterate::Float64          # current iterate
-    iteration::Int            # current iteration count
-    stopping_criterion_state  # any StoppingCriterionState
-end
-
-function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
-    x0 = rand() # random initial guess
-    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
-    return HeronState(x0, 0, stopping_criterion_state)
-end
-
-function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
-    # reset the state for the algorithm
-    state.iterate = rand()
-    state.iteration = 0
-
-    # reset the state for the stopping criterion
-    AlgorithmsInterface.initialize_state!(
-        problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state
+function AlgorithmsInterface.initialize_state(
+        problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...
     )
-    return state
+    return initialize_state(problem, algorithm, rand(); kwargs...)
 end
 
-function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
-    S = problem.S
-    x = state.iterate
-    state.iterate = 0.5 * (x + S / x)
-    return state
+function AlgorithmsInterface.initialize_state!(
+        problem::SqrtProblem, algorithm::HeronAlgorithm, state::State; kwargs...
+    )
+    return initialize_state!(problem, algorithm, state, rand(); kwargs...)
 end
 ```
 
-This `HeronAlgorithm` now determines its own initial iterate rather than being handed one, so it runs without the `iterate` keyword:
+Note how both hand their guess to the generic method, which is where the [`State`](@ref) is allocated and reset.
+Neither shadows that method: a caller who does pass an iterate reaches it directly and gets to say where the algorithm starts after all.
+This `HeronAlgorithm` now falls back to an initial guess of its own rather than insisting on being handed one, so it runs with nothing but a problem and a criterion:
 
 ```@example Heron
 println("Approximate sqrt: ", solve(SqrtProblem(16.0), HeronAlgorithm(StopAfterIteration(10))))
@@ -223,7 +209,7 @@ Private = true
 
 ```@autodocs
 Modules = [AlgorithmsInterface]
-Pages = ["interface/state.jl", "default_state.jl"]
+Pages = ["interface/state.jl"]
 Order = [:type, :function]
 Private = true
 ```
