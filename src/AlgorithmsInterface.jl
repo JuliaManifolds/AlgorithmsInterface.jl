@@ -14,6 +14,7 @@ using ScopedValues
 
 include("interface/algorithm.jl")
 include("interface/problem.jl")
+include("interface/stopping_criterion.jl")
 include("interface/state.jl")
 include("interface/interface.jl")
 
@@ -32,7 +33,7 @@ export step!, solve, solve!, solve_loop!
 # stopping criteria
 export StoppingCriterion, StoppingCriterionState
 export StopAfter, StopAfterIteration, StopWhenAll, StopWhenAny
-export DefaultStoppingCriterionState, StopAfterTimePeriodState, GroupStoppingCriterionState
+export StopAfterTimePeriodData
 
 export is_finished, is_finished!, get_reason, is_active, indicates_convergence
 export get_active_stopping_criteria

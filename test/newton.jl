@@ -16,35 +16,24 @@ struct NewtonMethod{S} <: Algorithm
     stopping_criterion::S
 end
 
-mutable struct NewtonState{S} <: State
-    iteration::Int
-    iterate::Float64
-    stopping_criterion_state::S
-end
-
 # Implementing the algorithm
 # --------------------------
-function initialize_state(problem::RootFindingProblem, algorithm::NewtonMethod)
-    scs = initialize_state(problem, algorithm, algorithm.stopping_criterion)
-    return NewtonState(0, 1.0, scs) # hardcode initial guess to 1.0
+# The initial guess is the algorithm's to make rather than the caller's, so both
+# initializations are implemented, handing the generic `State` the iterate to start from.
+function initialize_state(problem::RootFindingProblem, algorithm::NewtonMethod; kwargs...)
+    scs = initialize_state(problem, algorithm, algorithm.stopping_criterion; kwargs...)
+    return State(1.0, scs) # hardcode initial guess to 1.0
 end
 function initialize_state!(
         problem::RootFindingProblem,
         algorithm::NewtonMethod,
-        state::NewtonState,
+        state::State;
+        kwargs...,
     )
-    state.iteration = 0
-    state.iterate = 1.0
-    initialize_state!(
-        problem,
-        algorithm,
-        algorithm.stopping_criterion,
-        state.stopping_criterion_state,
-    )
-    return state
+    return initialize_state!(problem, algorithm, state, 1.0; kwargs...)
 end
 
-function step!(problem::RootFindingProblem, ::NewtonMethod, state::NewtonState)
+function step!(problem::RootFindingProblem, ::NewtonMethod, state::State)
     state.iterate -= problem.f(state.iterate) / problem.df(state.iterate)
     return state
 end
