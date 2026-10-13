@@ -3,18 +3,17 @@
 
 An abstract type to represent a stopping criterion of an [`Algorithm`](@ref).
 
-A concrete [`StoppingCriterion`](@ref) should also implement an
-[`initialize_state(problem::Problem, algorithm::Algorithm, stopping_criterion::StoppingCriterion; kwargs...)`](@ref) function to create its accompanying
-[`StoppingCriterionState`](@ref), as well as the corresponding mutating variant to reset such a [`StoppingCriterionState`](@ref).
-
 It should usually implement
 
 * [`is_finished!`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
 * [`is_finished`](@ref)`(problem, algorithm, state, stopping_criterion, stopping_criterion_state)`
-* [`initialize_state!`](@ref)`(problem, algorithm, stopping_criterion)`
-* [`initialize_state`](@ref)`(problem, algorithm, stopping_criterion)`
 * [`get_reason`](@ref)`(stopping_criterion, stopping_criterion_state)`
 * [`indicates_convergence`](@ref)`(::Type{<:StoppingCriterion})`
+
+By default, its [`StoppingCriterionState`](@ref) is a [`DefaultStoppingCriterionState`](@ref).
+A criterion that needs more should implement
+[`initialize_state(problem::Problem, algorithm::Algorithm, stopping_criterion::StoppingCriterion; kwargs...)`](@ref)
+to create its own [`StoppingCriterionState`](@ref), as well as the mutating variant to reset it.
 
 Note that only [`indicates_convergence`](@ref) has to be implemented:
 it answers whether meeting this criterion *would* mean convergence, which is a static property of the criterion type alone.
@@ -563,6 +562,8 @@ end
 A [`StoppingCriterionState`](@ref) that does not require any information besides
 storing the iteration number at which it (last) indicated to stop.
 
+It is also the default return value for [`initialize_state`](@ref) for a [`StoppingCriterion`](@ref).
+
 # Fields
 
 * `at_iteration::Int` stores the iteration number at which this state indicated to stop.
@@ -574,16 +575,17 @@ mutable struct DefaultStoppingCriterionState <: StoppingCriterionState
     DefaultStoppingCriterionState() = new(-1)
 end
 
-initialize_state(::Problem, ::Algorithm, ::StopAfterIteration; kwargs...) = DefaultStoppingCriterionState()
+# Fallbacks for criteria without a state of their own
+initialize_state(::Problem, ::Algorithm, ::StoppingCriterion; kwargs...) =
+    DefaultStoppingCriterionState()
 function initialize_state!(
-        ::Problem, ::Algorithm, ::StopAfterIteration,
+        ::Problem, ::Algorithm, ::StoppingCriterion,
         stopping_criterion_state::DefaultStoppingCriterionState;
         kwargs...,
     )
     stopping_criterion_state.at_iteration = -1
     return stopping_criterion_state
 end
-
 
 function is_finished(
         ::Problem, ::Algorithm, state::State,
