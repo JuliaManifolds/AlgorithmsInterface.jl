@@ -27,7 +27,7 @@ The package ships several concrete [`StoppingCriterion`](@ref)s:
 
 Each criterion has an associated [`StoppingCriterionState`](@ref) storing dynamic data (iteration when met, elapsed time, etc.).
 
-Recall our [example implementation](@ref sec_heron) for Heron's method, where we added a `stopping_criterion` to the `Algorithm`, as well as a `stopping_criterion_state` to the `State`.
+Recall our [example implementation](@ref sec_heron) for Heron's method, where the `Algorithm` carries a `stopping_criterion` and the `State` a `stopping_criterion_state`.
 
 ```@example Heron
 using AlgorithmsInterface
@@ -39,41 +39,24 @@ end
 struct HeronAlgorithm <: Algorithm
     stopping_criterion        # any StoppingCriterion
 end
-
-mutable struct HeronState <: State
-    iterate::Float64          # current iterate
-    iteration::Int            # current iteration count
-    stopping_criterion_state  # any StoppingCriterionState
-end
 ```
 
 Here, we delve a bit deeper into the core components of what made our algorithm stop, even though we had to add very little additional functionality.
 
 ### Initialization
 
-The first core component to enable working with stopping criteria is to extend the initialization step to include initializing a [`StoppingCriterionState`](@ref) as well.
-This can conveniently be done through the same initialization functions we used for initializing the state:
+The first core component to enable working with stopping criteria is to initialize a [`StoppingCriterionState`](@ref) as well.
+This is done through the same initialization functions we used for initializing the state:
 
 - [`initialize_state`](@ref) constructs an entirely new stopping state for the algorithm
 - [`initialize_state!`](@ref) (in-place) reset of an existing stopping state.
 
-```@example Heron
-function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
-    x0 = rand() # random initial guess
-    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
-    return HeronState(x0, 0, stopping_criterion_state)
-end
+For a [`DefaultState`](@ref) this is already taken care of, by a default that roughly does
 
-function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
-    # reset the state for the algorithm
-    state.iterate = rand()
-    state.iteration = 0
-
-    # reset the state for the stopping criterion
-    state = AlgorithmsInterface.initialize_state!(
-        problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state
-    )
-    return state
+```julia
+function AlgorithmsInterface.initialize_state(problem::Problem, algorithm::Algorithm; iterate, kwargs...)
+    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion; kwargs...)
+    return DefaultState(iterate, stopping_criterion_state)
 end
 ```
 
@@ -82,7 +65,7 @@ end
 During the iteration procedure, as set out by our design principles, we do not have to modify any of the code, and the stopping criteria do not show up:
 
 ```@example Heron
-function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::DefaultState)
     S = problem.S
     x = state.iterate
     state.iterate = 0.5 * (x + S / x)
@@ -112,7 +95,7 @@ We can again combine everything into a single function, but now make the stoppin
 function heron_sqrt(x; stopping_criterion)
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(stopping_criterion)
-    return solve(prob, alg)  # allocates & runs
+    return solve(prob, alg; iterate = 1.0)  # allocates & runs
 end
 
 heron_sqrt(2; stopping_criterion = StopAfterIteration(10))
@@ -147,6 +130,9 @@ It is of course possible that we are not satisfied by the stopping criteria that
 Suppose we want to stop when successive iterates change by less than `ϵ`, we could achieve this by implementing our own stopping criterion.
 In order to do so, we need to define our own structs and implement the required interface.
 Again, we split up the data into a _static_ part, the [`StoppingCriterion`](@ref), and a _dynamic_ part, the [`StoppingCriterionState`](@ref).
+
+By default, a criterion gets a [`DefaultStoppingCriterionState`](@ref), which only records the iteration at which it triggered.
+Ours also has to remember the previous iterate, so it needs its own state.
 
 ```@example Heron
 struct StopWhenStable <: StoppingCriterion
@@ -253,8 +239,8 @@ The variant taking a criterion simply forwards to the type, and the two-argument
 
 ```@example Heron
 criterion = StopWhenStable(1e-8)
-state = AlgorithmsInterface.initialize_state(SqrtProblem(16.0), HeronAlgorithm(criterion), criterion)
-indicates_convergence(criterion), indicates_convergence(criterion, state)
+criterion_state = AlgorithmsInterface.initialize_state(SqrtProblem(16.0), HeronAlgorithm(criterion), criterion)
+indicates_convergence(criterion), indicates_convergence(criterion, criterion_state)
 ```
 
 The criterion always *could* indicate convergence, but its fresh state has not yet seen it happen.
@@ -274,7 +260,7 @@ Since [`solve`](@ref) returns only the iterate, we use [`solve!`](@ref) with a s
 function heron_verdict(x, criterion)
     problem = SqrtProblem(x)
     algorithm = HeronAlgorithm(criterion)
-    state = AlgorithmsInterface.initialize_state(problem, algorithm)
+    state = AlgorithmsInterface.initialize_state(problem, algorithm, 1.0)
 
     solve!(problem, algorithm, state)
 
@@ -320,15 +306,18 @@ heron_sqrt(16.0; stopping_criterion = criterion)
 
 ### Summary
 
-Implementing a criterion usually means defining:
+Implementing a criterion means defining:
 
 1. A subtype of [`StoppingCriterion`](@ref).
-2. A state subtype of [`StoppingCriterionState`](@ref) capturing dynamic fields, including an `at_iteration` recording when the criterion triggered.
-3. `initialize_state` and `initialize_state!` for setup/reset.
-4. `is_finished!` (mutating) and optionally `is_finished` (non‑mutating) variants.
-5. `get_reason` (return `nothing` or a string) for user feedback, gated on `is_active`.
-6. `indicates_convergence(::Type{YourCriterion})` to mark if meeting it implies convergence.
+2. `is_finished!` (mutating) and optionally `is_finished` (non‑mutating) variants.
+3. `get_reason` (return `nothing` or a string) for user feedback, gated on `is_active`.
+4. `indicates_convergence(::Type{YourCriterion})` to mark if meeting it implies convergence.
    The `(criterion,)` and the `(criterion, criterion_state)` variant are derived from this one and do not need to be defined.
+
+If the criterion needs more state than the [`DefaultStoppingCriterionState`](@ref), it additionally defines:
+
+* A state subtype of [`StoppingCriterionState`](@ref) capturing its dynamic fields, including an `at_iteration` recording when the criterion triggered.
+* `initialize_state` and `initialize_state!` for setup/reset.
 
 You may also implement `Base.summary(io, criterion, criterion_state)` for compact status reports,
 and `is_active(criterion, criterion_state)` if your state does not record its status in an

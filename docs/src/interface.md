@@ -58,50 +58,26 @@ end
 struct HeronAlgorithm <: Algorithm
     stopping_criterion        # will be plugged in later (any StoppingCriterion)
 end
-
-mutable struct HeronState <: State
-    iterate::Float64          # current iterate
-    iteration::Int            # current iteration count
-    stopping_criterion_state  # will be plugged in later (any StoppingCriterionState)
-end
 ```
+
+For the state, we use the [`DefaultState`](@ref), which stores the `iterate`, the `iteration` count and the `stopping_criterion_state`.
+If you need more, see [defining your own state](@ref sec_custom_state) below.
 
 ### Initialization
 
-In order to start implementing the core parts of our algorithm, we start at the very beginning.
 There are two main entry points provided by the interface:
 
 - [`initialize_state`](@ref) constructs an entirely new state for the algorithm
 - [`initialize_state!`](@ref) (in-place) reset of an existing state.
 
-An example implementation might look like:
-
-```@example Heron
-function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
-    x0 = rand() # random initial guess
-    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
-    return HeronState(x0, 0, stopping_criterion_state)
-end
-
-function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
-    # reset the state for the algorithm
-    state.iterate = rand()
-    state.iteration = 0
-
-    # reset the state for the stopping criterion
-    state = AlgorithmsInterface.initialize_state!(
-        problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state
-    )
-    return state
-end
-```
+Both have default implementations that work with a [`DefaultState`](@ref), so there is nothing to define here.
 
 ### Iteration steps
 
 Algorithms define a mutable step via [`step!`](@ref). For Heron's method:
 
 ```@example Heron
-function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::DefaultState)
     S = problem.S
     x = state.iterate
     state.iterate = 0.5 * (x + S / x)
@@ -129,7 +105,7 @@ With these definitions in place you can already run (assuming you also choose a 
 function heron_sqrt(x; maxiter = 10)
     prob = SqrtProblem(x)
     alg  = HeronAlgorithm(StopAfterIteration(maxiter))
-    return solve(prob, alg)  # allocates & runs
+    return solve(prob, alg; iterate = 1.0)  # initial guess, allocates & runs
 end
 
 println("Approximate sqrt: ", heron_sqrt(16.0))
@@ -138,6 +114,78 @@ println("Approximate sqrt: ", heron_sqrt(16.0))
 Note that [`solve`](@ref) will default to returning `state.iterate`.
 If desired, this can be customized by altering [`finalize_state!`](@ref).
 We will refine this example with better halting logic and logging shortly.
+
+### Carrying extra data
+
+Any additional data the algorithm needs can be stored in the `data::D` field of the [`DefaultState{V, S, D}`](@ref).
+
+```@example Heron
+struct TrackingHeronAlgorithm <: Algorithm
+    stopping_criterion
+end
+
+function AlgorithmsInterface.step!(problem::SqrtProblem, ::TrackingHeronAlgorithm, state::DefaultState)
+    S = problem.S
+    x = state.iterate
+    state.iterate = 0.5 * (x + S / x)
+    push!(state.data.residuals, abs(state.iterate^2 - S))
+    return state
+end
+
+problem = SqrtProblem(16.0)
+tracking = TrackingHeronAlgorithm(StopAfterIteration(5))
+state = initialize_state(problem, tracking, 1.0, (; residuals = Float64[]))
+solve!(problem, tracking, state)
+state.data.residuals
+```
+
+Here the initial iterate and the data are passed positionally, as `initialize_state(problem, algorithm, iterate, state_data)`.
+
+### [Defining your own state](@id sec_custom_state)
+
+If you need named fields or want to dispatch on the state, subtype [`State`](@ref) instead.
+Such a state has to provide the same three properties, as well as its own initialization methods:
+
+```@example Heron
+mutable struct HeronState <: State
+    iterate::Float64          # current iterate
+    iteration::Int            # current iteration count
+    stopping_criterion_state  # any StoppingCriterionState
+end
+
+function AlgorithmsInterface.initialize_state(problem::SqrtProblem, algorithm::HeronAlgorithm; kwargs...)
+    x0 = rand() # random initial guess
+    stopping_criterion_state = initialize_state(problem, algorithm, algorithm.stopping_criterion)
+    return HeronState(x0, 0, stopping_criterion_state)
+end
+
+function AlgorithmsInterface.initialize_state!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState; kwargs...)
+    # reset the state for the algorithm
+    state.iterate = rand()
+    state.iteration = 0
+
+    # reset the state for the stopping criterion
+    AlgorithmsInterface.initialize_state!(
+        problem, algorithm, algorithm.stopping_criterion, state.stopping_criterion_state
+    )
+    return state
+end
+
+function AlgorithmsInterface.step!(problem::SqrtProblem, algorithm::HeronAlgorithm, state::HeronState)
+    S = problem.S
+    x = state.iterate
+    state.iterate = 0.5 * (x + S / x)
+    return state
+end
+```
+
+Since this state picks its own initial guess, the `iterate` keyword is no longer needed:
+
+```@example Heron
+println("Approximate sqrt: ", solve(SqrtProblem(16.0), HeronAlgorithm(StopAfterIteration(10))))
+```
+
+Note that the three required *properties* do not enforce a struct with these *fields*, and the properties can be emulated with correct implementations of `Base.getproperty`.
 
 ## Reference: Core interface types & functions
 
@@ -172,7 +220,7 @@ Private = true
 
 ```@autodocs
 Modules = [AlgorithmsInterface]
-Pages = ["interface/state.jl"]
+Pages = ["interface/state.jl", "default_state.jl"]
 Order = [:type, :function]
 Private = true
 ```

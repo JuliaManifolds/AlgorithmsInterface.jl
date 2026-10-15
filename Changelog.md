@@ -17,11 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StopReasonAction`, a `LoggingAction` that reports `get_reason` at the `:Stop` context.
 - Defaults for `get_reason` (`nothing`) and for the type-domain `indicates_convergence` (`false`), so a criterion that implements neither no longer hits a `MethodError` from the derived convergence reporting.
 - Exports for `DefaultStoppingCriterionState`, `StopAfterTimePeriodState` and `GroupStoppingCriterionState`, which a downstream criterion is expected to reuse.
+- `DefaultState`, a `State` with the `iterate`, `iteration` and `stopping_criterion_state` fields, and a `data` field for any additional data.
+- Default `initialize_state` and `initialize_state!` methods using a `DefaultState`, so an algorithm only has to provide a `Problem`, an `Algorithm` and a `step!`.
+- Default `initialize_state` and `initialize_state!` methods for any `StoppingCriterion`, using a `DefaultStoppingCriterionState`.
 
 ### Changed
 
 - `indicates_convergence` without a state moved to the type domain: a new criterion implements `indicates_convergence(::Type{YourCriterion})`, and `indicates_convergence(criterion)` forwards to it.
   `StopWhenAll` and `StopWhenAny` combine their children in the type domain as well, so a criterion that only implements the variant taking an instance is no longer accounted for in a group.
+- `StopAfterIteration` now uses the default `initialize_state` and `initialize_state!`.
 
 ### Fixed
 
